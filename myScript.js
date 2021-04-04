@@ -1,12 +1,3 @@
-var seed = 7+{repq22};
-
-sample0 = new Array
-dist0 = new Array
-sum_array0=0
-
-sample0=[{bbb1} , {bbb2} , {bbb3} , {bbb4} , {bbb5} , {bbb6} , {bbb7} , {bbb8} , {bbb9} , {bbb10}]
-
-
 function random() {
     var x = Math.sin(6+seed++) * 10000;
     return x - Math.floor(x);
