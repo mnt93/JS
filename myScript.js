@@ -290,20 +290,4 @@ function getRandomArray(x,n,rang,Nb_reponses,c0,c1,sci) {
 }
 
 
-function quantile(s,q,k){
-	s=s.sort(function(a, b){return a - b})
-    N=s.length;
-    p=k/q;
-    j=Math.trunc((N-1)*p);
-    g=(N-1)*p-j;
 
-	return s[j]+g*(s[j+1]-s[j])
-}
-
-function sum(a){
-    s=0;
-    for (i=0;i<a.length;i++){
-        s=s+a[i];
-    }
-	return s
-}
