@@ -299,3 +299,33 @@ function quantile(s,q,k){
 
 	return s[j]+g*(s[j+1]-s[j])
 }
+
+function sum(a){
+    s=0;
+    for (i=0;i<a.length;i++){
+        s=s+a[i];
+    }
+	return s
+}
+
+function mean(a){
+	m=sum(a)/a.length;
+	return m
+}
+
+function variance(a){
+	m=mean(a);
+    v=0;
+    n=a.length;
+    for (i=0;i<n;i++){
+        v=v+Math.pow(a[i]-m,2);
+    }
+    v=v/(n-1)
+    return v
+}
+
+function sd(a){
+	v=variance(a)
+    s=Math.pow(v,0.5)
+    return s
+}
