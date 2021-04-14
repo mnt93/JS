@@ -282,3 +282,7 @@ function factorial (n) {
 function C(n,k) {
   return factorial(n)/factorial(k)/factorial(n-k);
 }
+
+function hyper_pdf(n,N,p,k) {
+	return C(p*N,k)*C((1-p)*N,n-k)/C(N,n))
+}
