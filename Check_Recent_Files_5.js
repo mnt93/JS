@@ -126,6 +126,7 @@ function load_url_array(url) {
   if (xmlhttp.readyState == 4 & xmlhttp.status == 200) {
   	url_array = xmlhttp.responseText.split('\n');
   }
+  url_array.pop();
     return url_array
 }
 
