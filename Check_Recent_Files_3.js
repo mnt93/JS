@@ -4,7 +4,7 @@ function find_last_url() {
 	const d = new Date();
 	let year = d.getFullYear();
 	let month = d.getMonth();
-	if(month<7) {S="Semester_2"} else {S="Semester_2"}
+	if(month<7) {S="Semester_2"} else {S="Semester_1"}
 
 	res="";
 	file_index1=0;
@@ -44,7 +44,27 @@ function find_last_url() {
     	url2="";
     }   
     
-	url=[url1,url2]
+    
+ 	res="";
+	file_index3=0;
+    while(res!==404){
+		file_index3=file_index3+1;
+		url="https://cdn.jsdelivr.net/gh/mnt93/JS/File_"+year+"_"+S+"_"+file_index3+".txt"
+		var request = new XMLHttpRequest();
+		request.open('GET', url, false);  // `false` makes the request synchronous
+		request.send(null);
+    	res=request.status;
+	}
+
+	file_index3=file_index3-1;
+    
+    if (file_index3) {
+    	url3="https://cdn.jsdelivr.net/gh/mnt93/JS/File_"+year+"_"+S+"_"+file_index3+".txt"
+    } else { 
+    	url3="";
+    }   
+    
+	url=[url1,url2,url3]
 	return url
 
 }
