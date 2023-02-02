@@ -118,3 +118,14 @@ function find_course_id() {
         return Num_question
 
     }
+function load_url_array(url) {
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.open("GET", url, false);
+  xmlhttp.overrideMimeType('text/xml')
+  xmlhttp.send();
+  if (xmlhttp.readyState == 4 & xmlhttp.status == 200) {
+  	url_array = xmlhttp.responseText.split('\n');
+  }
+    return url_array
+}
+
