@@ -1,4 +1,4 @@
-https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js
+https://cdn.jsdelivr.net/gh/mnt93/JS/seedrandom.min.js
 https://cdn.jsdelivr.net/npm/nerdamer@latest/nerdamer.core.js
 https://cdn.jsdelivr.net/npm/nerdamer@latest/Algebra.js
 https://cdn.jsdelivr.net/npm/nerdamer@latest/Calculus.js
