@@ -1521,3 +1521,19 @@ function getArray(x,n,rang,Nb_reponses,sci,Num_question){
     
     return transformed
 }
+
+/*==============================================================================================================================*/
+	function Create_Rand_Data_Table(rows=2, cols=2, min=0, max=1,precision=3, Seed_Table) {
+            var myrng = new Math.seedrandom(Seed_Table);
+            var data = new Array()
+            for (var i = 0; i < rows; i++) {
+                data[i] = new Array()
+                for (var j = 0; j < cols; j++) {
+                    data[i][j] = min+myrng()*(max-min);
+                    data[i][j] = data[i][j].toPrecision(precision)
+                }
+            }
+
+            return data
+        }
+/*==============================================================================================================================*/
