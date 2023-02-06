@@ -1382,37 +1382,56 @@
     function getArray(x, n, rang, Nb_reponses, sci, Num_question) {
 
         absx = Math.abs(x);
-
-        vag = valeurs_a_gauche(absx, rang, n);
-
-        vad = valeurs_a_droite(absx, rang, Nb_reponses, n);
-
         var reponse = new Array;
 
-        for (j = 0; j < vag.length; j++) {
+        if (parseInt(x) == x && x > 0) { //&& x<=10
+            for (j = 0; j < Nb_reponses; j++) {
+                if ((x - rang + 1 + j) > 0) {
+                    reponse[j] = x - (rang - 1 - j)
+                } else {
+                    reponse[j] = x - (rang - 1 - j) + 10
+                }
+            }
 
-            reponse[j] = significant_digits(vag[j], n, sci);
+        } else {
+            vag = valeurs_a_gauche(absx, rang, n);
+            vad = valeurs_a_droite(absx, rang, Nb_reponses, n);
+
+
+
+            for (j = 0; j < vag.length; j++) {
+
+                reponse[j] = significant_digits(vag[j], n, sci);
+
+            }
+
+            reponse[rang - 1] = significant_digits(absx, n, sci);
+
+            for (j = rang; j < Nb_reponses; j++) {
+
+                reponse[j] = significant_digits(vad[j - rang], n, sci);
+
+            }
+
+
+            for (j = 0; j < Nb_reponses; j++) {
+
+                reponse[j] = significant_digits(Math.sign(x) * reponse[j], n, sci);
+
+            }
+
+
 
         }
 
-        reponse[rang - 1] = significant_digits(absx, n, sci);
 
-        for (j = rang; j < Nb_reponses; j++) {
 
-            reponse[j] = significant_digits(vad[j - rang], n, sci);
-
-        }
-
-        for (j = 0; j < Nb_reponses; j++) {
-
-            reponse[j] = significant_digits(Math.sign(x) * reponse[j], n, sci);
-
-        }
 
         for (i = 1; i <= Nb_reponses; i++) {
             document.getElementById("R" + Num_question + i).innerHTML = reponse[i - 1]
         }
         //document.getElementById("demo"+ Num_question).innerHTML = Num_question+'alpha'
+
         return reponse
 
     }
