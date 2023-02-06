@@ -1392,6 +1392,7 @@
                     reponse[j] = x - (rang - 1 - j) + 10
                 }
             }
+            document.getElementById("emplacement_nombre_chiffres_significatifs").innerHTML = ''
 
         } else {
             vag = valeurs_a_gauche(absx, rang, n);
