@@ -1523,8 +1523,7 @@ function getArray(x,n,rang,Nb_reponses,sci,Num_question){
 }
 
 /*==============================================================================================================================*/
-	function Create_Rand_Data_Table(Seed_Table=1,rows=2, cols=2, min=0, max=1,precision=3) {
-	    var myrng = new Math.seedrandom(Seed_Table);
+	function Create_Rand_Data_Table(myrng,rows=2, cols=2, min=0, max=1,precision=3) {
             var data = new Array()
             for (var i = 0; i < rows; i++) {
                 data[i] = new Array()
