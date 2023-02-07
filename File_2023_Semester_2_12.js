@@ -1373,69 +1373,86 @@
 
 
 
+                    function getArray(x, n, rang, Nb_reponses, sci, Num_question) {
+
+                        absx = Math.abs(x);
+                        var reponse = new Array;
+                        document.getElementById("demo" + Num_question).innerHTML = url
+
+                        if (parseInt(x) == x && x > 0) { //&& x<=10
 
 
 
 
 
+                            var reponse = Array.from({
+                                length: Nb_reponses
+                            }, (_, i) => i + 1);
 
-    function getArray(x, n, rang, Nb_reponses, sci, Num_question) {
-
-        absx = Math.abs(x);
-        var reponse = new Array;
-
-        if (parseInt(x) == x && x > 0) { //&& x<=10
-            for (j = 0; j < Nb_reponses; j++) {
-                if ((x - rang + 1 + j) > 0) {
-                    reponse[j] = x - (rang - 1 - j)
-                } else {
-                    reponse[j] = x - (rang - 1 - j) + 10
-                }
-            }
-            document.getElementById("emplacement_nombre_chiffres_significatifs").innerHTML = ''
-
-        } else {
-            vag = valeurs_a_gauche(absx, rang, n);
-            vad = valeurs_a_droite(absx, rang, Nb_reponses, n);
-
-
-
-            for (j = 0; j < vag.length; j++) {
-
-                reponse[j] = significant_digits(vag[j], n, sci);
-
-            }
-
-            reponse[rang - 1] = significant_digits(absx, n, sci);
-
-            for (j = rang; j < Nb_reponses; j++) {
-
-                reponse[j] = significant_digits(vad[j - rang], n, sci);
-
-            }
-
-
-            for (j = 0; j < Nb_reponses; j++) {
-
-                reponse[j] = significant_digits(Math.sign(x) * reponse[j], n, sci);
-
-            }
-
-
-
-        }
+                            reponse.splice(x - 1, 1);
 
 
 
 
-        for (i = 1; i <= Nb_reponses; i++) {
-            document.getElementById("R" + Num_question + i).innerHTML = reponse[i - 1]
-        }
-        //document.getElementById("demo"+ Num_question).innerHTML = Num_question+'alpha'
 
-        return reponse
+                            reponse = reponse.sort((a, b) => 0.5 - myrng()); // permutation aleatoire des elements du tableau
 
-    }
+                            reponse.splice(rang - 1, 0, x);
+
+
+
+
+
+                            //document.getElementsByTagName("emplacement_reponses").length
+
+
+                            document.getElementsByTagName("emplacement_nombre_chiffres_significatifs_ext")[(Num_question - 1)].setAttribute("id", "emplacement_nombre_chiffres_significatifs_ext" + Num_question)
+                            document.getElementById("emplacement_nombre_chiffres_significatifs_ext" + Num_question).innerHTML = ''
+
+                        } else {
+                            vag = valeurs_a_gauche(absx, rang, n);
+                            vad = valeurs_a_droite(absx, rang, Nb_reponses, n);
+
+
+
+                            for (j = 0; j < vag.length; j++) {
+
+                                reponse[j] = significant_digits(vag[j], n, sci);
+
+                            }
+
+                            reponse[rang - 1] = significant_digits(absx, n, sci);
+
+                            for (j = rang; j < Nb_reponses; j++) {
+
+                                reponse[j] = significant_digits(vad[j - rang], n, sci);
+
+                            }
+
+
+                            for (j = 0; j < Nb_reponses; j++) {
+
+                                reponse[j] = significant_digits(Math.sign(x) * reponse[j], n, sci);
+
+                            }
+
+
+
+                        }
+
+
+
+
+                        for (i = 1; i <= Nb_reponses; i++) {
+                            document.getElementById("R" + Num_question + i).innerHTML = reponse[i - 1]
+                        }
+
+                        return reponse
+
+                    }
+
+
+
 
 
     function getExprArray(expr, par_var_symb, par_var_val, rang, Nb_reponses) {
