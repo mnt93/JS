@@ -1453,58 +1453,51 @@
 
 
 
+    function getArray(x, n, rang, Nb_reponses, sci, Num_question,myrng) {
 
-
-    function getExprArray(expr, par_var_symb, par_var_val, rang, Nb_reponses) {
-
-        var par_array = new Array
-        for (var i = 0; i < Nb_reponses; i++) {
-            par_array[i] = ''
-            for (var j = 0; j < par_var_val.length; j++) {
-                par_array[i] = par_array[i] + (par_var_val[j] + (math.pow(-1, j) * (i - rang + 1)))
-                if (j < par_var_val.length - 1) {
-                    par_array[i] = par_array[i] + ','
-                }
-            }
-        }
-        nerdamer.setFunction('f', par_var_symb, expr);
+        absx = Math.abs(x);
         var reponse = new Array;
 
-        const d = new Date();
+        if (parseInt(x) == x && x > 0) { //&& x<=10
+ 
+            shift=Math.floor(myrng() * 10) ;
+            shift=Math.min(...[shift,x-1])
+            var reponse = Array.from({length: Nb_reponses}, (_, i) => i+x-shift);
+            reponse.splice(shift, 1);
+            reponse= reponse.sort((a, b) => 0.5 - myrng()); // permutation aleatoire des elements du tableau
+            reponse.splice(rang-1, 0, x);
+             
+            document.getElementsByTagName("emplacement_nombre_chiffres_significatifs_ext")[ (Num_question - 1)].setAttribute("id", "emplacement_nombre_chiffres_significatifs_ext" + Num_question)
+            document.getElementById("emplacement_nombre_chiffres_significatifs_ext" + Num_question).innerHTML=''
 
-        if (d.getTime() < Date.parse("2023-01-29")) {
-            for (j = 0; j < Nb_reponses; j++) {
-                exprf = nerdamer('f(' + par_array[j] + ')').toString();
-                exprf_im = nerdamer('imagpart(' + exprf + ')').toString();
-                exprf_re = nerdamer('realpart(' + exprf + ')').toString();
-                if (isNaN(Number(nerdamer(exprf_im).evaluate())) || Number(exprf_im) == 0 || Number(exprf_re) == 0) {
-                    exprf_tex = nerdamer(exprf).toTeX()
-                    exprf_re_tex = nerdamer(exprf_re).toTeX()
-                    if (Number(exprf_re) == 0) {
-                        reponse[j] = '\\(\\ \\ \\ \\ ' + exprf_tex + ' \\)'
-                    } else {
-                        reponse[j] = '\\(\\ \\ \\ \\ ' + exprf_re_tex + ' \\)'
-                    }
-                } else {
-                    if (Number(nerdamer(exprf_im).evaluate()) < 0) {
-                        exprf_im = nerdamer('realpart(-(' + exprf_im + '))').toString()
-                        exprf_im_tex = nerdamer(exprf_im).toTeX()
-                        exprf_re_tex = nerdamer(exprf_re).toTeX()
-                        reponse[j] = '\\(\\ \\ \\ \\ ' + exprf_re_tex + ' \\)' + '\\(  - \\)' + (nerdamer(exprf_im).toString().includes("+") ? ' \\((' + exprf_im_tex + ') i \\) ' : ' \\(' + exprf_im_tex + ' i \\) ')
-                    } else {
-                        exprf_re_tex = nerdamer(exprf_re).toTeX()
-                        exprf_im_tex = nerdamer(exprf_im).toTeX()
-                        reponse[j] = '\\(\\ \\ \\ \\ ' + exprf_re_tex + ' \\)' + '\\(  + \\)' + (nerdamer(exprf_im).toString().includes("+") ? ' \\((' + exprf_im_tex + ') i \\) ' : ' \\(' + exprf_im_tex + ' i \\) ')
-                    }
-                }
-                document.getElementById("R" + Num_question + (j + 1)).style.fontSize = "130%"
+        } else {
+            vag = valeurs_a_gauche(absx, rang, n);
+            vad = valeurs_a_droite(absx, rang, Nb_reponses, n);
 
+			for (j = 0; j < vag.length; j++) {
+                reponse[j] = significant_digits(vag[j], n, sci);
             }
-            return reponse
+
+            reponse[rang - 1] = significant_digits(absx, n, sci);
+
+            for (j = rang; j < Nb_reponses; j++) {
+                reponse[j] = significant_digits(vad[j - rang], n, sci);
+            }
+
+           for (j = 0; j < Nb_reponses; j++) {
+                reponse[j] = significant_digits(Math.sign(x) * reponse[j], n, sci);
+            }
         }
 
+        for (i = 1; i <= Nb_reponses; i++) {
+            document.getElementById("R" + Num_question + i).innerHTML = reponse[i - 1]
+        }
+
+		return reponse
     }
 
+
+ 
 
 
     function getExprArray(solution_expr, par_var, rang, Nb_reponses) {
