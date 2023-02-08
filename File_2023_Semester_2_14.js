@@ -1606,7 +1606,7 @@
     }
     /*==============================================================================================================================*/
 
-                   function plot_hist(array, div_id) {
+                     function plot_hist(array, div_id, hist_title = "") {
                         google.charts.load('current', {
                             'packages': ['corechart']
                         });
@@ -1620,14 +1620,18 @@
                                     position: 'none'
                                 },
                                 colors: ['#e7711c'],
-                                title: div_id,
-
+                                title: hist_title,
+                                titleTextStyle: {
+                                    fontSize: 20,
+                                    bold: true,
+                                }
                             };
 
                             var chart = new google.visualization.Histogram(document.getElementById(div_id));
                             chart.draw(data, options);
                         }
                     }
+
     /*==============================================================================================================================*/
                     function convert_2d_table_to_google_hist_data(data) {
                         var individal_index = 0;
