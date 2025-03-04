@@ -142,11 +142,34 @@ function hashCode(str) {
 /*=============================================================================================================== */
 /*=============================================================================================================== */
 
-
 function find_attempt_id() {
-  let href = document.getElementById("langmenu0").getAttribute("href")
-  var i0 = href.indexOf("=")
-  var i1 = href.indexOf("&")
-  var attempt = href.substring(i0 + 1, i1);
-  return attempt
+    // Obtenir le code source HTML de la page actuelle
+    const htmlContent = document.documentElement.outerHTML;
+
+    // Trouver l'index de la première occurrence de "attempt="
+    const startIndex = htmlContent.indexOf("attempt=");
+
+    if (startIndex === -1) {
+        // "attempt=" n'a pas été trouvé
+        console.log("La chaîne 'attempt=' n'a pas été trouvée dans le code source.");
+        return null;
+    }
+
+    // Définir le début de la chaîne à extraire juste après "attempt="
+    const start = startIndex + "attempt=".length;
+
+    // Trouver l'index de la première occurrence de "&amp;cmid=" après "attempt="
+    const endIndex = htmlContent.indexOf("&amp;cmid=", start);
+
+    if (endIndex === -1) {
+        // "&amp;cmid=" n'a pas été trouvé
+        console.log("La chaîne '&amp;cmid=' n'a pas été trouvée dans le code source.");
+        return null;
+    }
+
+    // Extraire la chaîne entre "attempt=" et "&amp;cmid="
+    const attemptValue = htmlContent.substring(start, endIndex);
+
+    return attemptValue;
 }
+
