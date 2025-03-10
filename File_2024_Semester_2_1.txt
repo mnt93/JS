@@ -1,9 +1,0 @@
-https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js
-https://cdn.jsdelivr.net/npm/nerdamer@latest/nerdamer.core.js
-https://cdn.jsdelivr.net/npm/nerdamer@latest/Algebra.js
-https://cdn.jsdelivr.net/npm/nerdamer@latest/Calculus.js
-https://cdn.jsdelivr.net/npm/nerdamer@latest/Solve.js
-https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.4.1/math.min.js
-https://cdn.jsdelivr.net/npm/jstat@latest/dist/jstat.min.js
-https://unpkg.com/xlsx@0.15.1/dist/xlsx.full.min.js
-https://www.gstatic.com/charts/loader.js
