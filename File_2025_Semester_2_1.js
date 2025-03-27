@@ -1638,7 +1638,7 @@ function get_frequencies(data, min_value, max_value, range) {
 /*==============================================================================================================================*/
 
 
-        function ExportToTxt1(table_Id) {
+        function ExportToTxt(table_Id) {
 
             // obtenir la table par son ID
             var table = document.getElementById(table_Id);
