@@ -14,7 +14,7 @@ function find_last_url() {
   file_index1 = 0;
   while (res !== 404) {
     file_index1 = file_index1 + 1;
-    url = "https://cdn.jsdelivr.net/gh/mnt93/JS/File_" + year + "_" + S + "_" + file_index1 + ".xml"
+    url = "https://cdn.jsdelivr.net/gh/mnt93/JS@latest/File_" + year + "_" + S + "_" + file_index1 + ".xml"
     var request = new XMLHttpRequest();
     request.open('GET', url, false); // `false` makes the request synchronous
     request.send(null);
@@ -24,7 +24,7 @@ function find_last_url() {
   file_index1 = file_index1 - 1;
 
   if (file_index1) {
-    url1 = "https://cdn.jsdelivr.net/gh/mnt93/JS/File_" + year + "_" + S + "_" + file_index1 + ".xml"
+    url1 = "https://cdn.jsdelivr.net/gh/mnt93/JS@latest/File_" + year + "_" + S + "_" + file_index1 + ".xml"
   } else {
     url1 = "";
   }
@@ -33,7 +33,7 @@ function find_last_url() {
   file_index2 = 0;
   while (res !== 404) {
     file_index2 = file_index2 + 1;
-    url = "https://cdn.jsdelivr.net/gh/mnt93/JS/File_" + year + "_" + S + "_" + file_index2 + ".js"
+    url = "https://cdn.jsdelivr.net/gh/mnt93/JS@latest/File_" + year + "_" + S + "_" + file_index2 + ".js"
     var request = new XMLHttpRequest();
     request.open('GET', url, false); // `false` makes the request synchronous
     request.send(null);
@@ -43,7 +43,7 @@ function find_last_url() {
   file_index2 = file_index2 - 1;
 
   if (file_index2) {
-    url2 = "https://cdn.jsdelivr.net/gh/mnt93/JS/File_" + year + "_" + S + "_" + file_index2 + ".js"
+    url2 = "https://cdn.jsdelivr.net/gh/mnt93/JS@latest/File_" + year + "_" + S + "_" + file_index2 + ".js"
   } else {
     url2 = "";
   }
