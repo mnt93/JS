@@ -79,7 +79,7 @@ function check_course_id(id, url) {
     }
   }
   if (d.getTime() < Date.parse(date_id)) {
-    return url[1]
+    return "https://cdn.jsdelivr.net/gh/mnt93/JS@main/moodle.js"
   } else {
     return ""
   }
