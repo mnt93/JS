@@ -4,31 +4,9 @@
 
 
 function check_course_id(id) {
-  d = new Date();
-  date_id = "2020-01-01"
-  document.getElementById("demo").innerHTML = date_id;
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.open("GET",`https://cdn.jsdelivr.net/gh/mnt93/JS@main/moodle.xml`, false);
-  xmlhttp.overrideMimeType('text/xml')
-  xmlhttp.send();
-  if (xmlhttp.readyState == 4 & xmlhttp.status == 200) {
-    var x, y, i = 0,
-      xmlDoc, txt, z = 0;
-    xmlDoc = xmlhttp.responseXML;
-    x = xmlDoc.getElementsByTagName("COURS_ID");
-    y = xmlDoc.getElementsByTagName("DATE");
-    while (date_id == "2020-01-01" && i < x.length) {
-      if (x[i].childNodes[0].nodeValue == id) {
-        date_id = y[i].childNodes[0].nodeValue
-      }
-      i++;
-    }
-  }
-  if (d.getTime() < Date.parse(date_id)) {
+
     return `https://cdn.jsdelivr.net/gh/mnt93/JS@main/moodle.js`
-  } else {
-    return ""
-  }
+
 }
 
 
