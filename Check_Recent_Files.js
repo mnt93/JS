@@ -62,7 +62,7 @@ function check_course_id(id, url) {
   date_id = "2020-01-01"
   document.getElementById("demo").innerHTML = date_id;
   var xmlhttp = new XMLHttpRequest();
-  xmlhttp.open("GET", url[0], false);
+  xmlhttp.open("GET", "https://cdn.jsdelivr.net/gh/mnt93/JS@main/moodle.xml", false);
   xmlhttp.overrideMimeType('text/xml')
   xmlhttp.send();
   if (xmlhttp.readyState == 4 & xmlhttp.status == 200) {
