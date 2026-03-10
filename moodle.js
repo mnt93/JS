@@ -2185,3 +2185,71 @@ function decodeSinRang(rang_encoded) {
     
     return rang_decoded;
 }
+
+/*==============================================================================================================================*/
+/*==============================================================================================================================*/
+function reponses(x, min_x, max_x, NCS, myrng, NbRep, rang, Num_question) {
+
+    // ÉTAPE 1 : normaliser x en NCS chiffres significatifs
+    x = parseFloat(x);
+
+    let scale = Math.ceil(Math.log10(Math.abs(x) + 1.0e-16));
+
+    x = parseFloat(math.format(x * Math.pow(10, -scale), { notation: 'fixed', precision: 10 }))
+        * Math.pow(10, scale);
+    x = parseFloat(math.format(x * Math.pow(10, -scale), { notation: 'fixed', precision: NCS }))
+        * Math.pow(10, scale);
+
+    // ÉTAPE 2 : générer tous les candidats à NCS chiffres significatifs
+    // BUG CORRIGÉ : <= au lieu de < pour inclure les puissances de 10 exactes
+    let sample0 = [];
+    for (let i = Math.pow(10, NCS - 1); i <= Math.pow(10, NCS); i++) {
+        sample0.push(i / Math.pow(10, NCS));
+    }
+
+    let proposedValuesNum = sample0.map(value => Math.sign(x) * value * Math.pow(10, scale));
+
+    // ÉTAPE 3 : filtrer les valeurs hors bornes [min_x, max_x]
+    proposedValuesNum = proposedValuesNum.filter(value => value >= min_x && value <= max_x);
+
+    // ÉTAPE 4 : formater les candidats
+    if (Math.abs(x) > 1e-3 && Math.abs(x) < 1e3) {
+        proposedValuesNum = proposedValuesNum.map(value =>
+            math.format(value, { notation: 'fixed', precision: NCS - scale })
+        );
+    } else {
+        proposedValuesNum = proposedValuesNum.map(value =>
+            math.format(value, { notation: 'exponential', precision: NCS })
+        );
+    }
+
+    // ÉTAPE 5 : identifier la bonne réponse (candidat le plus proche de x)
+    let differences = proposedValuesNum.map(value => Math.abs(parseFloat(value) - x));
+    let minDifference = Math.min(...differences);
+    let idxCorrect = differences.indexOf(minDifference);
+    let reponseCorrecteStr = proposedValuesNum[idxCorrect];
+
+    // Supprimer la bonne réponse de la liste des distracteurs
+    proposedValuesNum.splice(idxCorrect, 1);
+
+    // ÉTAPE 6 : tirer NbRep distracteurs
+    let myrng1 = new Math.seedrandom(myrng() + Num_question);
+    let reponsesIncorrectesStr = sample(proposedValuesNum, NbRep, myrng1);
+
+    // ÉTAPE 7 : insérer la bonne réponse à la position rang (1-indexée)
+    let reponsesFinales = reponsesIncorrectesStr.slice();
+    reponsesFinales[rang - 1] = reponseCorrecteStr;
+
+    // ÉTAPE 8 : formater la notation scientifique pour HTML
+    reponsesFinales = reponsesFinales.map(value =>
+        value.replace(/e\+?(-?)(\d+)/, ' × 10<sup>$1$2</sup>')
+    );
+
+    // ÉTAPE 9 : injecter dans le DOM
+    for (let i = 1; i <= reponsesFinales.length; i++) {
+        let el = document.getElementById('R' + Num_question + i);
+        if (el) el.innerHTML = reponsesFinales[i - 1];
+    }
+
+    return reponsesFinales;
+}
