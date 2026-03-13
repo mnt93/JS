@@ -1,3 +1,4 @@
+
 /*==============================================================================================================================*/
 /* moodle.js — Bibliothèque de fonctions JavaScript pour les exercices Moodle de biostatistiques
 /*
@@ -1668,24 +1669,71 @@ function plot_line(array, emplacement_courbe = "emplacement_courbe", line_title 
 /*==============================================================================================================================*/
 
 /* data_from_function(func, Xrange, ColNames)
-/* — Génère un tableau de 1000 points [x, f(x)] à partir d'une expression symbolique.
-/* Utilise la bibliothèque nerdamer pour évaluer l'expression.
+/* — Génère un tableau de 500 points [x, f(x)] à partir d'une expression symbolique.
 /*
-/* @param func     {string}  Expression mathématique en x (ex. 'exp(-x^2/2)/sqrt(2*pi)').
+/* ÉVALUATEUR : utilise math.js (math.evaluate) en priorité, avec fallback sur nerdamer.
+/* Raison : nerdamer retourne NaN pour les expressions impliquant sqrt(pi) ou des
+/* différences négatives élevées au carré, ce qui rend les densités de lois normales
+/* (et exponentielle, uniforme) incorrectes. math.js évalue correctement toutes ces formes.
+/*
+/* Syntaxe de l'expression (math.js) :
+/*   - Opérateur puissance : ^ ou ** (les deux acceptés par math.js)
+/*   - Fonctions : exp, sqrt, abs, log, sin, cos, tan, ...
+/*   - Constantes : pi, e  (en minuscules — math.js les reconnaît)
+/*   - Variable   : x  (sera substituée numériquement à chaque point)
+/*   - Exemple densité N(mu, sigma²) :
+/*       'exp(-0.5*((x-' + mu + ')/' + sigma + ')^2)/(' + sigma + '*sqrt(2*pi))'
+/*   - Exemple densité Exp(lambda) :
+/*       lambda + '*exp(-' + lambda + '*x)'
+/*
+/* IMPORTANT — incorporation des paramètres :
+/*   Les valeurs numériques (mu, sigma, lambda, a, b, ...) DOIVENT être incorporées
+/*   dans la chaîne par concaténation JS avant l'appel, pas passées comme variables :
+/*   CORRECT : 'exp(-0.5*((x-' + mu + ')/' + sigma + ')^2)/(' + sigma + '*sqrt(2*pi))'
+/*   INCORRECT: 'exp(-0.5*((x-mu)/sigma)^2)/(sigma*sqrt(2*pi))'   <- mu/sigma inconnus
+/*
+/* @param func     {string}  Expression de f(x), variable x (syntaxe math.js).
 /* @param Xrange   {Array}   [x_min, x_max] — bornes de la plage de tracé.
 /* @param ColNames {Array}   Noms des colonnes (défaut : ['X', 'Y']).
-/* @returns {Array}  Tableau au format Google Charts (ligne 0 = en-têtes, lignes 1..1000 = points). */
-function data_from_function(func, Xrange, ColNames = ['X', 'Y']) {
-    nerdamer.setFunction('f', ['x'], func);
-    var data = new Array()
-    data[0] = ColNames;
-    for (var i = 0; i < 1000; i++) {
-        data[i + 1] = new Array();
-        data[i + 1] = [Xrange[0] + i / 1000 * (Xrange[1] - Xrange[0]), Number(nerdamer('f(' + Xrange[0] + i / 1000 * (Xrange[1] - Xrange[0]) + ')'))]
+/* @returns {Array}  Tableau au format Google Charts (ligne 0 = en-têtes, lignes 1..500 = points). */
+function data_from_function(func, Xrange, ColNames) {
+    ColNames = ColNames || ['X', 'Y'];
+    var N    = 500;
+    var data = new Array(N + 1);
+    data[0]  = ColNames;
+
+    // Choix de l'évaluateur : math.js en priorité (gère sqrt(pi), exp(...), puissances négatives)
+    // Fallback sur nerdamer si math.js n'est pas disponible.
+    var use_mathjs = (typeof math !== 'undefined' && typeof math.evaluate === 'function');
+
+    for (var i = 0; i < N; i++) {
+        var xv = Xrange[0] + (i / (N - 1)) * (Xrange[1] - Xrange[0]);
+        var yv;
+
+        if (use_mathjs) {
+            // math.js : substitution de x dans la chaîne par sa valeur numérique
+            // puis évaluation de l'expression résultante (entièrement numérique).
+            try {
+                var expr = func.replace(/\bx\b/g, '(' + xv + ')');
+                yv = Number(math.evaluate(expr));
+            } catch(e) {
+                yv = 0;
+            }
+        } else {
+            // Fallback nerdamer (fonctionne pour les expressions simples sans sqrt(pi))
+            try {
+                var expr_n = func.replace(/\bx\b/g, '(' + xv + ')');
+                yv = Number(nerdamer(expr_n));
+            } catch(e) {
+                yv = 0;
+            }
+        }
+
+        if (!isFinite(yv) || isNaN(yv)) yv = 0;
+        data[i + 1] = [xv, yv];
     }
 
-    return data
-
+    return data;
 }
 
 /*==============================================================================================================================*/
@@ -3190,6 +3238,13 @@ function plot_area(data, div_id, Xrange_area, options) {
         }
 
         // ── Options Google ComboChart ─────────────────────────────────────────
+        // Calcul du y_max réel pour un axe Y bien cadré (pas de 0→1 par défaut)
+        var y_max = 0;
+        for (var j = 1; j < data.length; j++) {
+            if (data[j][1] > y_max) y_max = data[j][1];
+        }
+        var y_axis_max = y_max * 1.15;   // 15% de marge au-dessus du pic
+
         var series_opts;
         if (Xrange_area) {
             series_opts = {
@@ -3209,8 +3264,8 @@ function plot_area(data, div_id, Xrange_area, options) {
             series:         series_opts,
             tooltip:        { isHtml: true },
             legend:         show_legend ? { position: 'bottom', textStyle: { fontSize: 11 } } : { position: 'none' },
-            vAxes: { 0: { title: y_title, viewWindow: { min: 0 }, titleTextStyle: { fontSize: 12 } } },
-            hAxes: { 0: { title: x_title, titleTextStyle: { fontSize: 12 } } },
+            vAxis: { title: y_title, viewWindow: { min: 0, max: y_axis_max }, titleTextStyle: { fontSize: 12 }, format: '#.####' },
+            hAxis: { title: x_title, titleTextStyle: { fontSize: 12 } },
             chartArea: {
                 width:  W - 120,
                 height: H - 100,
