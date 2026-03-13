@@ -2188,7 +2188,7 @@ function decodeSinRang(rang_encoded) {
 
 /*==============================================================================================================================*/
 /*==============================================================================================================================*/
-function reponses(x, min_x, max_x, NCS, myrng, NbRep, rang, Num_question) {
+function reponses1(x, min_x, max_x, NCS, myrng, NbRep, rang, Num_question) {
 
     // ÉTAPE 1 : normaliser x en NCS chiffres significatifs
     x = parseFloat(x);
