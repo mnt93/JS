@@ -3077,6 +3077,7 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 /*==============================================================================================================================*/
 
 
+
 /*==============================================================================================================================*/
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
@@ -3497,8 +3498,16 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         /* Meme principe que les zones de rejet mais avec la couleur obs    */
         var extreme_traces = [];
 
-        /* open_start=true : pas de trait vertical au debut (cote valeur de ref) */
-        /* open_end=true   : pas de trait vertical a la fin  (cote valeur de ref) */
+        /* 
+         * Fonction pour ajouter une zone extreme avec contour orange
+         * open_start : si true, pas de trait vertical à gauche (zone commence sur la courbe)
+         * open_end   : si true, pas de trait vertical à droite (zone termine sur la courbe)
+         * 
+         * CORRECTION : Pour que la bordure inférieure soit toujours sur l'axe des abscisses,
+         * on trace TOUJOURS le segment bas de (xb,0) à (xa,0) indépendamment des paramètres.
+         * Le paramètre open_start/open_end contrôle seulement si on remonte par la courbe
+         * ou si on fait un segment vertical.
+         */
         var _add_extreme_zone = function(xa, xb, open_start, open_end) {
             var xZ = [], yZ = [];
             var hz = 0;
@@ -3509,20 +3518,38 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                 hz++;
             }
             if (!xZ.length) return;
-            /* Construction du contour selon open_start / open_end :
-               - open_start=false : segment vertical gauche de (xa,0) vers (xa,y(xa))
-               - open_start=true  : commencer directement en (xa, y(xa))
-               - open_end=false   : segment vertical droit  de (xb,y(xb)) vers (xb,0)
-               - open_end=true    : terminer directement en (xb, y(xb))
-               Le segment bas (xb->xa sur y=0) est toujours trace.          */
+            
+            /* Construction du contour :
+               - On part du point de départ (xa, ya) où ya = 0 si open_start, ou y(xa) sinon
+               - On suit la courbe jusqu'à (xb, yb)
+               - On descend verticalement si open_end=false, sinon on reste sur la courbe
+               - On trace le segment bas de (xb,0) à (xa,0) TOUJOURS
+            */
             var contour_x, contour_y;
-            if (open_start) {
-                contour_x = xZ.concat([xb, xa]);
-                contour_y = yZ.concat([open_end ? yZ[yZ.length-1] : 0, 0]);
-            } else {
-                contour_x = [xa].concat(xZ).concat([xb, xa]);
-                contour_y = [0].concat(yZ).concat([open_end ? yZ[yZ.length-1] : 0, 0]);
+            var y_at_xa = ys[xs.indexOf(xa)];
+            var y_at_xb = ys[xs.indexOf(xb)];
+            
+            if (open_start && open_end) {
+                // Cas 1: les deux bouts sont ouverts -> contour fermé par la courbe et l'axe
+                contour_x = [xa].concat(xZ).concat([xb]);
+                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb]);
+            } 
+            else if (open_start && !open_end) {
+                // Cas 2: ouvert à gauche (départ sur courbe), fermé à droite (descente verticale)
+                contour_x = [xa].concat(xZ).concat([xb, xb]);
+                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb, 0]);
             }
+            else if (!open_start && open_end) {
+                // Cas 3: fermé à gauche (montée verticale), ouvert à droite (arrêt sur courbe)
+                contour_x = [xa, xa].concat(xZ).concat([xb]);
+                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb]);
+            }
+            else {
+                // Cas 4: les deux bouts sont fermés -> descentes verticales des deux côtés
+                contour_x = [xa, xa].concat(xZ).concat([xb, xb]);
+                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb, 0]);
+            }
+            
             extreme_traces.push({
                 x: contour_x,
                 y: contour_y,
@@ -3534,17 +3561,22 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         };
 
         if (!isNaN(x_obs)) {
-            if (side === 'right' || side === 'bilateral') {
-                /* Cote x_obs : pas de trait vertical a gauche (open_start=true) */
+            if (side === 'right') {
+                /* Test unilatéral à droite : zone à droite de x_obs */
                 _add_extreme_zone(x_obs, x_max, true, false);
             }
-            if (side === 'bilateral' && !isNaN(x_sym)) {
-                /* Cote x_sym : pas de trait vertical a droite (open_end=true) */
-                _add_extreme_zone(x_min, x_sym, false, true);
-            }
-            if (side === 'left') {
-                /* Cote x_obs : pas de trait vertical a droite (open_end=true) */
+            else if (side === 'left') {
+                /* Test unilatéral à gauche : zone à gauche de x_obs */
                 _add_extreme_zone(x_min, x_obs, false, true);
+            }
+            else if (side === 'bilateral') {
+                /* Test bilatéral : deux zones (côté x_obs et côté x_sym) */
+                if (!isNaN(x_sym)) {
+                    /* Côté x_sym (gauche) : fermé à gauche (descente verticale au début), ouvert à droite */
+                    _add_extreme_zone(x_min, x_sym, false, true);
+                }
+                /* Côté x_obs (droite) : ouvert à gauche, fermé à droite (descente verticale à la fin) */
+                _add_extreme_zone(x_obs, x_max, true, false);
             }
         }
 
@@ -3557,8 +3589,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             hovertemplate: bare_xt2 + ' = %{x:.4f}<br>' + bare_yt2 + ' = %{y:.5f}<extra></extra>',
             name: '', showlegend: false
         }];
-
-        /* extreme_traces insere apres les lignes verticales */
 
         /* Zone de rejet gauche */
         if (!isNaN(x_crit_lo)) {
