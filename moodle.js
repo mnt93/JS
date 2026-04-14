@@ -3495,59 +3495,61 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         var bare_yt2 = _bare(y_title);
 
         /* Zone extreme : contour couleur C_OBS autour de la zone          */
-        /* Meme principe que les zones de rejet mais avec la couleur obs    */
         var extreme_traces = [];
 
         /* 
          * Fonction pour ajouter une zone extreme avec contour orange
-         * open_start : si true, pas de trait vertical à gauche (zone commence sur la courbe)
-         * open_end   : si true, pas de trait vertical à droite (zone termine sur la courbe)
-         * 
-         * CORRECTION : Pour que la bordure inférieure soit toujours sur l'axe des abscisses,
-         * on trace TOUJOURS le segment bas de (xb,0) à (xa,0) indépendamment des paramètres.
-         * Le paramètre open_start/open_end contrôle seulement si on remonte par la courbe
-         * ou si on fait un segment vertical.
+         * La zone est un polygone fermé qui suit la courbe d'un côté et l'axe des x de l'autre.
+         * La bordure inférieure (sur l'axe des x) est TOUJOURS présente.
          */
-        var _add_extreme_zone = function(xa, xb, open_start, open_end) {
+        var _add_extreme_zone = function(xa, xb) {
+            // Récupérer les points de la courbe entre xa et xb
             var xZ = [], yZ = [];
             var hz = 0;
             while (_lt(hz, xs.length)) {
                 if (_gte(xs[hz], xa) && _lte(xs[hz], xb)) {
-                    xZ.push(xs[hz]); yZ.push(ys[hz]);
+                    xZ.push(xs[hz]); 
+                    yZ.push(ys[hz]);
                 }
                 hz++;
             }
             if (!xZ.length) return;
             
-            /* Construction du contour :
-               - On part du point de départ (xa, ya) où ya = 0 si open_start, ou y(xa) sinon
-               - On suit la courbe jusqu'à (xb, yb)
-               - On descend verticalement si open_end=false, sinon on reste sur la courbe
-               - On trace le segment bas de (xb,0) à (xa,0) TOUJOURS
-            */
-            var contour_x, contour_y;
-            var y_at_xa = ys[xs.indexOf(xa)];
-            var y_at_xb = ys[xs.indexOf(xb)];
+            // Récupérer les valeurs y aux bornes
+            var idx_a = -1, idx_b = -1;
+            for (var idx = 0; idx < xs.length; idx++) {
+                if (Math.abs(xs[idx] - xa) < 1e-9) idx_a = idx;
+                if (Math.abs(xs[idx] - xb) < 1e-9) idx_b = idx;
+            }
+            var y_at_xa = (idx_a !== -1) ? ys[idx_a] : 0;
+            var y_at_xb = (idx_b !== -1) ? ys[idx_b] : 0;
             
-            if (open_start && open_end) {
-                // Cas 1: les deux bouts sont ouverts -> contour fermé par la courbe et l'axe
+            // Construire le polygone fermé :
+            // 1. Commencer à (xa, 0) - point bas gauche
+            // 2. Monter verticalement à (xa, y(xa)) si nécessaire
+            // 3. Suivre la courbe jusqu'à (xb, y(xb))
+            // 4. Descendre verticalement à (xb, 0)
+            // 5. Revenir à (xa, 0) pour fermer (bordure basse)
+            
+            var contour_x, contour_y;
+            
+            // Vérifier si on est à l'extrémité gauche (xa === x_min)
+            var at_left_boundary = (Math.abs(xa - x_min) < 1e-9);
+            // Vérifier si on est à l'extrémité droite (xb === x_max)
+            var at_right_boundary = (Math.abs(xb - x_max) < 1e-9);
+            
+            if (at_left_boundary) {
+                // Si on part de la borne gauche, on commence directement sur la courbe
+                contour_x = xZ.concat([xb]);
+                contour_y = yZ.concat([0]);
+            } else if (at_right_boundary) {
+                // Si on arrive à la borne droite, on termine directement sur l'axe
+                contour_x = [xa].concat(xZ);
+                contour_y = [0].concat(yZ);
+            } else {
+                // Cas général : polygone fermé complet
                 contour_x = [xa].concat(xZ).concat([xb]);
-                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb]);
-            } 
-            else if (open_start && !open_end) {
-                // Cas 2: ouvert à gauche (départ sur courbe), fermé à droite (descente verticale)
-                contour_x = [xa].concat(xZ).concat([xb, xb]);
-                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb, 0]);
-            }
-            else if (!open_start && open_end) {
-                // Cas 3: fermé à gauche (montée verticale), ouvert à droite (arrêt sur courbe)
-                contour_x = [xa, xa].concat(xZ).concat([xb]);
-                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb]);
-            }
-            else {
-                // Cas 4: les deux bouts sont fermés -> descentes verticales des deux côtés
-                contour_x = [xa, xa].concat(xZ).concat([xb, xb]);
-                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb, 0]);
+                contour_y = [0].concat(yZ).concat([0]);
             }
             
             extreme_traces.push({
@@ -3563,20 +3565,20 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         if (!isNaN(x_obs)) {
             if (side === 'right') {
                 /* Test unilatéral à droite : zone à droite de x_obs */
-                _add_extreme_zone(x_obs, x_max, true, false);
+                _add_extreme_zone(x_obs, x_max);
             }
             else if (side === 'left') {
                 /* Test unilatéral à gauche : zone à gauche de x_obs */
-                _add_extreme_zone(x_min, x_obs, false, true);
+                _add_extreme_zone(x_min, x_obs);
             }
             else if (side === 'bilateral') {
                 /* Test bilatéral : deux zones (côté x_obs et côté x_sym) */
                 if (!isNaN(x_sym)) {
-                    /* Côté x_sym (gauche) : fermé à gauche (descente verticale au début), ouvert à droite */
-                    _add_extreme_zone(x_min, x_sym, false, true);
+                    /* Côté x_sym (gauche) */
+                    _add_extreme_zone(x_min, x_sym);
                 }
-                /* Côté x_obs (droite) : ouvert à gauche, fermé à droite (descente verticale à la fin) */
-                _add_extreme_zone(x_obs, x_max, true, false);
+                /* Côté x_obs (droite) */
+                _add_extreme_zone(x_obs, x_max);
             }
         }
 
