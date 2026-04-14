@@ -3391,7 +3391,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     /*   - zone de rejet (x <= x_crit_lo ou x >= x_crit_hi) : rouge plein */
     /*   - zone au moins aussi extreme que x_obs (hors rejet) : hachures  */
     /*   - reste : bleu non-rejet                                          */
-    /*   - x_sym : pas de couleur speciale                                 */
+    /*   - x_obs et x_sym : bordure orange epaisse                        */
     /* ------------------------------------------------------------------ */
     if (is_discrete) {
 
@@ -3401,7 +3401,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         var ks_arr     = [];
         var pmf_arr    = [];
         var col_arr    = [];
-        var border_arr   = [];   /* couleur bordure barre extreme */
+        var border_arr   = [];   /* couleur bordure */
         var border_w_arr = [];   /* largeur bordure */
 
         var k_iter = Math.round(x_min);
@@ -3412,26 +3412,32 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
             var is_rej  = (!isNaN(x_crit_lo) && _lte(k_iter, x_crit_lo))
                        || (!isNaN(x_crit_hi) && _gte(k_iter, x_crit_hi));
-            /* Extreme : pmf <= pmf(x_obs) ET a partir de x_obs vers extremite */
-            /* (cote obs: k >= x_obs, cote sym: k <= x_sym)                    */
-            var k_r = Math.round(x_obs);
-            var k_s = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
-            var on_obs_side = _gte(k_iter, k_r);  /* inclut x_obs */
-            var on_sym_side = !isNaN(k_s) && _lte(k_iter, k_s);  /* inclut x_sym */;
-            var is_extreme = (!isNaN(x_obs)
-                              && _lte(pmf_k, p_obs_d)
-                              && (on_obs_side || on_sym_side));
-
+            
+            /* Determination de la couleur de la barre */
             if (is_rej) {
                 col_arr.push(C_REJECT_BAR);
             } else {
                 col_arr.push(C_NOREJECT_BAR);
             }
-            /* Bordure orange partant de x_obs (ou x_sym) vers les extremes */
-            /* Pas de bordure sur x_obs et x_sym eux-memes */
-            var is_ref = (k_iter === k_r) || (!isNaN(k_s) && k_iter === k_s);
-            border_arr.push((is_extreme && !is_ref) ? C_OBS : 'rgba(0,0,0,0)');
-            border_w_arr.push((is_extreme && !is_ref) ? 1 : 0);
+            
+            /* Determination de la bordure */
+            var k_r = Math.round(x_obs);
+            var k_s = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
+            var is_obs_bar = (k_iter === k_r);
+            var is_sym_bar = (!isNaN(k_s) && k_iter === k_s);
+            
+            /* Bordure orange pour x_obs et x_sym */
+            if (is_obs_bar) {
+                border_arr.push(C_OBS);
+                border_w_arr.push(3);  /* Bordure plus epaisse pour la valeur observee */
+            } else if (is_sym_bar) {
+                border_arr.push(C_SYM);
+                border_w_arr.push(3);  /* Bordure plus epaisse pour la valeur symetrique */
+            } else {
+                border_arr.push('rgba(0,0,0,0)');
+                border_w_arr.push(0);
+            }
+            
             k_iter++;
         }
 
