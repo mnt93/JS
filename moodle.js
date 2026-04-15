@@ -3078,6 +3078,7 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 
 
 
+
 /*==============================================================================================================================*/
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
@@ -3363,6 +3364,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     /* ------------------------------------------------------------------ */
     /* LOI DISCRETE                                                       */
+    /* Bordure orange d'epaisseur 2 (doublee)                             */
     /* ------------------------------------------------------------------ */
     if (is_discrete) {
 
@@ -3397,9 +3399,10 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                               && _lte(pmf_k, p_obs_d)
                               && (on_obs_side || on_sym_side));
             
+            /* Bordure orange d'epaisseur 2 (doublee) pour les barres extremes */
             if (is_extreme) {
                 border_arr.push(C_OBS);
-                border_w_arr.push(1);
+                border_w_arr.push(2);  /* Epaisseur doublee (etait 1) */
             } else {
                 border_arr.push('rgba(0,0,0,0)');
                 border_w_arr.push(0);
@@ -3426,6 +3429,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     /* LOI CONTINUE                                                       */
     /* La bordure orange suit UNIQUEMENT la courbe et l'axe des x         */
     /* Pas de ligne verticale aux bornes de la zone (open_start/open_end) */
+    /* Epaisseur de la bordure : 2 (pour etre coherent avec la discrete)  */
     /* ------------------------------------------------------------------ */
     } else {
 
@@ -3467,7 +3471,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         /* Zone extreme : contour orange qui suit la courbe et l'axe des x */
         var extreme_traces = [];
 
-        /* Version originale avec open_start et open_end pour eviter les lignes verticales */
         var _add_extreme_zone = function(xa, xb, open_start, open_end) {
             var xZ = [], yZ = [];
             var hz = 0;
@@ -3484,7 +3487,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             var y_at_xa = 0;
             var y_at_xb = 0;
             
-            // Trouver les valeurs y aux bornes
             for (var idx = 0; idx < xs.length; idx++) {
                 if (Math.abs(xs[idx] - xa) < 1e-9) y_at_xa = ys[idx];
                 if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
@@ -3512,7 +3514,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                 y: contour_y,
                 type: 'scatter', mode: 'lines',
                 fill: 'none',
-                line: { color: C_OBS, width: 2 },
+                line: { color: C_OBS, width: 2 },  /* Epaisseur 2 pour la bordure */
                 name: '', hoverinfo: 'skip', showlegend: false
             });
         };
