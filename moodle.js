@@ -3078,7 +3078,6 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 
 
 
-
 /*==============================================================================================================================*/
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
@@ -3399,10 +3398,9 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                               && _lte(pmf_k, p_obs_d)
                               && (on_obs_side || on_sym_side));
             
-            /* Bordure orange d'epaisseur 2 (doublee) pour les barres extremes */
             if (is_extreme) {
                 border_arr.push(C_OBS);
-                border_w_arr.push(2);  /* Epaisseur doublee (etait 1) */
+                border_w_arr.push(2);
             } else {
                 border_arr.push('rgba(0,0,0,0)');
                 border_w_arr.push(0);
@@ -3428,8 +3426,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     /* ------------------------------------------------------------------ */
     /* LOI CONTINUE                                                       */
     /* La bordure orange suit UNIQUEMENT la courbe et l'axe des x         */
-    /* Pas de ligne verticale aux bornes de la zone (open_start/open_end) */
-    /* Epaisseur de la bordure : 2 (pour etre coherent avec la discrete)  */
+    /* Version ORIGINALE sans lignes verticales supplementaires           */
     /* ------------------------------------------------------------------ */
     } else {
 
@@ -3471,7 +3468,8 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         /* Zone extreme : contour orange qui suit la courbe et l'axe des x */
         var extreme_traces = [];
 
-        var _add_extreme_zone = function(xa, xb, open_start, open_end) {
+        /* Version ORIGINALE qui fonctionnait sans lignes verticales */
+        var _add_extreme_zone = function(xa, xb) {
             var xZ = [], yZ = [];
             var hz = 0;
             while (_lt(hz, xs.length)) {
@@ -3483,54 +3481,32 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             }
             if (!xZ.length) return;
             
-            var contour_x, contour_y;
-            var y_at_xa = 0;
-            var y_at_xb = 0;
-            
-            for (var idx = 0; idx < xs.length; idx++) {
-                if (Math.abs(xs[idx] - xa) < 1e-9) y_at_xa = ys[idx];
-                if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
-            }
-            
-            if (open_start && open_end) {
-                contour_x = [xa].concat(xZ).concat([xb]);
-                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb]);
-            } 
-            else if (open_start && !open_end) {
-                contour_x = [xa].concat(xZ).concat([xb, xb]);
-                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb, 0]);
-            }
-            else if (!open_start && open_end) {
-                contour_x = [xa, xa].concat(xZ).concat([xb]);
-                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb]);
-            }
-            else {
-                contour_x = [xa, xa].concat(xZ).concat([xb, xb]);
-                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb, 0]);
-            }
+            // Construction simple : point bas gauche -> courbe -> point bas droit
+            var contour_x = [xa].concat(xZ).concat([xb]);
+            var contour_y = [0].concat(yZ).concat([0]);
             
             extreme_traces.push({
                 x: contour_x,
                 y: contour_y,
                 type: 'scatter', mode: 'lines',
                 fill: 'none',
-                line: { color: C_OBS, width: 2 },  /* Epaisseur 2 pour la bordure */
+                line: { color: C_OBS, width: 2 },
                 name: '', hoverinfo: 'skip', showlegend: false
             });
         };
 
         if (!isNaN(x_obs)) {
             if (side === 'right') {
-                _add_extreme_zone(x_obs, x_max, true, false);
+                _add_extreme_zone(x_obs, x_max);
             }
             else if (side === 'left') {
-                _add_extreme_zone(x_min, x_obs, false, true);
+                _add_extreme_zone(x_min, x_obs);
             }
             else if (side === 'bilateral') {
                 if (!isNaN(x_sym)) {
-                    _add_extreme_zone(x_min, x_sym, false, true);
+                    _add_extreme_zone(x_min, x_sym);
                 }
-                _add_extreme_zone(x_obs, x_max, true, false);
+                _add_extreme_zone(x_obs, x_max);
             }
         }
 
