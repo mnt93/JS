@@ -3425,7 +3425,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     /* ------------------------------------------------------------------ */
     /* LOI CONTINUE                                                       */
     /* La bordure orange suit UNIQUEMENT la courbe et l'axe des x         */
-    /* Pas de ligne verticale aux bornes de la zone                       */
+    /* Pas de ligne verticale aux bornes de la zone (open_start/open_end) */
     /* ------------------------------------------------------------------ */
     } else {
 
@@ -3467,7 +3467,8 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         /* Zone extreme : contour orange qui suit la courbe et l'axe des x */
         var extreme_traces = [];
 
-        var _add_extreme_zone = function(xa, xb) {
+        /* Version originale avec open_start et open_end pour eviter les lignes verticales */
+        var _add_extreme_zone = function(xa, xb, open_start, open_end) {
             var xZ = [], yZ = [];
             var hz = 0;
             while (_lt(hz, xs.length)) {
@@ -3479,10 +3480,32 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             }
             if (!xZ.length) return;
             
-            // On construit le contour : point bas gauche -> courbe -> point bas droit
-            // On descend directement à l'axe sans segment vertical supplementaire
-            var contour_x = [xa].concat(xZ).concat([xb]);
-            var contour_y = [0].concat(yZ).concat([0]);
+            var contour_x, contour_y;
+            var y_at_xa = 0;
+            var y_at_xb = 0;
+            
+            // Trouver les valeurs y aux bornes
+            for (var idx = 0; idx < xs.length; idx++) {
+                if (Math.abs(xs[idx] - xa) < 1e-9) y_at_xa = ys[idx];
+                if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
+            }
+            
+            if (open_start && open_end) {
+                contour_x = [xa].concat(xZ).concat([xb]);
+                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb]);
+            } 
+            else if (open_start && !open_end) {
+                contour_x = [xa].concat(xZ).concat([xb, xb]);
+                contour_y = [y_at_xa].concat(yZ).concat([y_at_xb, 0]);
+            }
+            else if (!open_start && open_end) {
+                contour_x = [xa, xa].concat(xZ).concat([xb]);
+                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb]);
+            }
+            else {
+                contour_x = [xa, xa].concat(xZ).concat([xb, xb]);
+                contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb, 0]);
+            }
             
             extreme_traces.push({
                 x: contour_x,
@@ -3496,16 +3519,16 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         if (!isNaN(x_obs)) {
             if (side === 'right') {
-                _add_extreme_zone(x_obs, x_max);
+                _add_extreme_zone(x_obs, x_max, true, false);
             }
             else if (side === 'left') {
-                _add_extreme_zone(x_min, x_obs);
+                _add_extreme_zone(x_min, x_obs, false, true);
             }
             else if (side === 'bilateral') {
                 if (!isNaN(x_sym)) {
-                    _add_extreme_zone(x_min, x_sym);
+                    _add_extreme_zone(x_min, x_sym, false, true);
                 }
-                _add_extreme_zone(x_obs, x_max);
+                _add_extreme_zone(x_obs, x_max, true, false);
             }
         }
 
@@ -3565,7 +3588,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             hoverinfo: 'skip', name: '', showlegend: false
         });
 
-        /* Lignes verticales x_obs et x_sym (pointillees, sans bordure) */
+        /* Lignes verticales x_obs et x_sym (pointillees) */
         if (!isNaN(x_obs)) {
             var y_obs_top = pdf_fn(x_obs);
             if (!isFinite(y_obs_top) || y_obs_top === 0) y_obs_top = y_max_c * 0.9;
