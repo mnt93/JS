@@ -3422,8 +3422,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     /* ------------------------------------------------------------------ */
     /* LOI CONTINUE                                                       */
-    /* Version avec open_start/open_end pour EVITER les lignes verticales */
-    /* ET avec ligne du bas sur l'axe des abscisses                       */
+    /* Version qui gere correctement le cas x_obs < x_sym                 */
     /* ------------------------------------------------------------------ */
     } else {
 
@@ -3464,15 +3463,18 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         var extreme_traces = [];
 
-        /* 
-         * Version avec open_start/open_end pour eviter les lignes verticales
-         * ET on ajoute systematiquement le segment bas entre xa et xb
-         */
         var _add_extreme_zone = function(xa, xb, open_start, open_end) {
+            // S'assurer que xa <= xb
+            var start = Math.min(xa, xb);
+            var end = Math.max(xa, xb);
+            // Ajuster open_start/open_end en fonction de l'ordre
+            var actual_open_start = (xa <= xb) ? open_start : open_end;
+            var actual_open_end = (xa <= xb) ? open_end : open_start;
+            
             var xZ = [], yZ = [];
             var hz = 0;
             while (_lt(hz, xs.length)) {
-                if (_gte(xs[hz], xa) && _lte(xs[hz], xb)) {
+                if (_gte(xs[hz], start) && _lte(xs[hz], end)) {
                     xZ.push(xs[hz]); 
                     yZ.push(ys[hz]);
                 }
@@ -3481,32 +3483,28 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             if (!xZ.length) return;
             
             var contour_x, contour_y;
-            var y_at_xa = 0;
-            var y_at_xb = 0;
+            var y_at_start = 0;
+            var y_at_end = 0;
             
             for (var idx = 0; idx < xs.length; idx++) {
-                if (Math.abs(xs[idx] - xa) < 1e-9) y_at_xa = ys[idx];
-                if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
+                if (Math.abs(xs[idx] - start) < 1e-9) y_at_start = ys[idx];
+                if (Math.abs(xs[idx] - end) < 1e-9) y_at_end = ys[idx];
             }
             
-            if (open_start && open_end) {
-                // Les deux cotes ouverts : on trace juste la courbe, pas de bas
+            if (actual_open_start && actual_open_end) {
                 contour_x = xZ;
                 contour_y = yZ;
             } 
-            else if (open_start && !open_end) {
-                // Ouvert a gauche, ferme a droite : on descend a la fin, puis on revient par le bas
-                contour_x = xZ.concat([xb, xa]);
+            else if (actual_open_start && !actual_open_end) {
+                contour_x = xZ.concat([end, start]);
                 contour_y = yZ.concat([0, 0]);
             }
-            else if (!open_start && open_end) {
-                // Ferme a gauche, ouvert a droite : on monte au debut, puis on suit la courbe, et on revient par le bas
-                contour_x = [xa, xb].concat(xZ);
+            else if (!actual_open_start && actual_open_end) {
+                contour_x = [start, end].concat(xZ);
                 contour_y = [0, 0].concat(yZ);
             }
             else {
-                // Les deux cotes fermes : polygone complet avec le bas
-                contour_x = [xa].concat(xZ).concat([xb, xa]);
+                contour_x = [start].concat(xZ).concat([end, start]);
                 contour_y = [0].concat(yZ).concat([0, 0]);
             }
             
@@ -3522,20 +3520,18 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         if (!isNaN(x_obs)) {
             if (side === 'right') {
-                // Zone a droite de x_obs : ouvert a gauche, ferme a droite
                 _add_extreme_zone(x_obs, x_max, true, false);
             }
             else if (side === 'left') {
-                // Zone a gauche de x_obs : ferme a gauche, ouvert a droite
                 _add_extreme_zone(x_min, x_obs, false, true);
             }
             else if (side === 'bilateral') {
                 if (!isNaN(x_sym)) {
-                    // Cote sym (gauche) : ferme a gauche, ouvert a droite
+                    // Les deux zones : de x_min à x_sym et de x_obs à x_max
+                    // Peu importe l'ordre, on trace les deux zones
                     _add_extreme_zone(x_min, x_sym, false, true);
+                    _add_extreme_zone(x_obs, x_max, true, false);
                 }
-                // Cote obs (droite) : ouvert a gauche, ferme a droite
-                _add_extreme_zone(x_obs, x_max, true, false);
             }
         }
 
