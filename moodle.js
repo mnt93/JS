@@ -3078,599 +3078,89 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 
 
 
-/*==============================================================================================================================*/
-/*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
-/*
-/*  Equivalent de plot_distribution() mais utilisant Plotly au lieu de Google Charts.
-/*  Signature identique — aucune modification des appels existants necessaire.
-/*
-/*  Dependances (a charger avant ce script) :
-/*    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js"></script>
-/*    <script src="https://cdn.jsdelivr.net/npm/jstat@latest/dist/jstat.min.js"></script>
-/*
-/*  @param div_id  {string}  ID du <div> cible
-/*  @param law     {string}  'normal' | 'student' | 'chisquare' | 'binomial' | 'poisson' | 'exponential' | 'uniform'
-/*  @param params  {Array}   Parametres de la loi (identiques a plot_distribution)
-/*  @param x_obs   {number}  Valeur observee
-/*  @param alpha   {number}  Seuil (ex : 0.05)
-/*  @param side    {string}  'bilateral' | 'left' | 'right'
-/*  @param title   {string}  Titre du graphique (LaTeX $...$ accepte)
-/*  @param options {object}  Facultatif : width, height, x_title, y_title, n_points, x_min, x_max
-/*==============================================================================================================================*/
 
-/* Active MathJax comme moteur LaTeX pour Plotly (appel unique, idempotent) */
-if (window.Plotly && !window._plotlyMathJaxConfigured) {
-    window.MathJax = window.MathJax || {};
-    Plotly.setPlotConfig({ MathJaxConfig: 'v3' });
-    window._plotlyMathJaxConfigured = true;
-}
+/* ------------------------------------------------------------------ */
+/* LOI DISCRETE : barres colorees + hachures pour zones extremes       */
+/* Coloriage :                                                          */
+/*   - zone de rejet (x <= x_crit_lo ou x >= x_crit_hi) : rouge plein */
+/*   - zone au moins aussi extreme que x_obs (hors rejet) : hachures  */
+/*   - reste : bleu non-rejet                                          */
+/*   - x_obs et x_sym : bordure orange epaisse PAR DESSUS              */
+/*   - autres barres extremes : bordure orange fine                    */
+/* ------------------------------------------------------------------ */
+if (is_discrete) {
 
-function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options) {
+    /* p_obs pour determiner les barres "au moins aussi extremes" */
+    var p_obs_d = (!isNaN(x_obs)) ? pdf_fn(Math.round(x_obs)) : -1;
 
-    var opts     = options || {};
-    var x_title  = opts.x_title  || 'x';
-    var y_title  = opts.y_title  || 'f(x)';
-    var n_points = opts.n_points || 300;
+    var ks_arr     = [];
+    var pmf_arr    = [];
+    var col_arr    = [];
+    var border_arr   = [];   /* couleur bordure */
+    var border_w_arr = [];   /* largeur bordure */
 
-    /* helpers de comparaison sans operateurs < > (compatibilite STACK/Moodle) */
-    var _lt  = function(a, b) { return Math.sign(a - b) === -1; };
-    var _lte = function(a, b) { return Math.sign(a - b) !== 1; };
-    var _gt  = function(a, b) { return Math.sign(a - b) === 1; };
-    var _gte = function(a, b) { return Math.sign(a - b) !== -1; };
+    var k_iter = Math.round(x_min);
+    while (_lte(k_iter, Math.round(x_max))) {
+        ks_arr.push(k_iter);
+        var pmf_k = pdf_fn(k_iter);
+        pmf_arr.push(pmf_k);
 
-    /* ------------------------------------------------------------------ */
-    /* Couleurs fixes (fond blanc, texte noir)                              */
-    /* ------------------------------------------------------------------ */
-    var C_REJECT       = 'rgba(226,75,74,0.30)';
-    var C_REJECT_SOLID = 'rgba(226,75,74,0.55)';
-    var C_HATCH_OBS    = 'rgba(239,159,39,0.55)';
-    var C_HATCH_SYM    = 'rgba(155,89,182,0.55)';
-    var C_NOREJECT  = 'rgba(55,138,221,0.15)';
-    var C_OBS       = '#EF9F27';
-    var C_SYM       = '#9B59B6';
-    var C_CRIT      = '#E24B4A';
-    var C_CURVE     = '#378ADD';
-    var C_REJECT_BAR   = 'rgba(226,75,74,0.70)';
-    var C_NOREJECT_BAR = 'rgba(55,138,221,0.55)';
-    var C_TEXT      = '#1a1a1a';
-    var C_GRID      = 'rgba(0,0,0,0.10)';
-
-    /* ------------------------------------------------------------------ */
-    /* Fonctions jStat                                                      */
-    /* ------------------------------------------------------------------ */
-    var pdf_fn = function(x) {
-        if (law === 'normal')      return jStat.normal.pdf(x, params[0], params[1]);
-        if (law === 'student')     return jStat.studentt.pdf(x, params[0]);
-        if (law === 'chisquare')   return jStat.chisquare.pdf(x, params[0]);
-        if (law === 'binomial')    return jStat.binomial.pdf(x, params[0], params[1]);
-        if (law === 'poisson')     return jStat.poisson.pdf(x, params[0]);
-        if (law === 'exponential') return jStat.exponential.pdf(x, params[0]);
-        if (law === 'uniform')     return jStat.uniform.pdf(x, params[0], params[1]);
-        return 0;
-    };
-
-    var cdf_fn = function(x) {
-        if (law === 'normal')      return jStat.normal.cdf(x, params[0], params[1]);
-        if (law === 'student')     return jStat.studentt.cdf(x, params[0]);
-        if (law === 'chisquare')   return jStat.chisquare.cdf(x, params[0]);
-        if (law === 'binomial')    return jStat.binomial.cdf(x, params[0], params[1]);
-        if (law === 'poisson')     return jStat.poisson.cdf(x, params[0]);
-        if (law === 'exponential') return jStat.exponential.cdf(x, params[0]);
-        if (law === 'uniform')     return jStat.uniform.cdf(x, params[0], params[1]);
-        return 0;
-    };
-
-    var inv_fn = function(p) {
-        if (law === 'normal')      return jStat.normal.inv(p, params[0], params[1]);
-        if (law === 'student')     return jStat.studentt.inv(p, params[0]);
-        if (law === 'chisquare')   return jStat.chisquare.inv(p, params[0]);
-        if (law === 'exponential') return jStat.exponential.inv(p, params[0]);
-        if (law === 'uniform')     return jStat.uniform.inv(p, params[0], params[1]);
-        return NaN;
-    };
-
-    var is_discrete = (law === 'binomial' || law === 'poisson');
-
-    /* ------------------------------------------------------------------ */
-    /* Valeurs critiques                                                    */
-    /* ------------------------------------------------------------------ */
-    var x_crit_lo = NaN;
-    var x_crit_hi = NaN;
-    var a_side = (side === 'bilateral') ? alpha / 2 : alpha;
-
-    if (is_discrete) {
-        var n_max = (law === 'binomial') ? params[0] : Math.round(params[0] * 10);
-        if (side === 'bilateral' || side === 'left') {
-            var ki = 0;
-            while (_lt(ki, n_max) && _lte(cdf_fn(ki), a_side)) ki++;
-            x_crit_lo = ki - 1;
-        }
-        if (side === 'bilateral' || side === 'right') {
-            var ks = n_max;
-            while (_gt(ks, 0) && _lte(1 - cdf_fn(ks - 1), a_side)) ks--;
-            x_crit_hi = ks + 1;
-        }
-    } else {
-        if (side === 'bilateral') {
-            x_crit_lo = inv_fn(alpha / 2);
-            x_crit_hi = inv_fn(1 - alpha / 2);
-        } else if (side === 'left') {
-            x_crit_lo = inv_fn(alpha);
+        var is_rej  = (!isNaN(x_crit_lo) && _lte(k_iter, x_crit_lo))
+                   || (!isNaN(x_crit_hi) && _gte(k_iter, x_crit_hi));
+        
+        /* Determination de la couleur de la barre */
+        if (is_rej) {
+            col_arr.push(C_REJECT_BAR);
         } else {
-            x_crit_hi = inv_fn(1 - alpha);
+            col_arr.push(C_NOREJECT_BAR);
         }
-    }
-
-    /* ------------------------------------------------------------------ */
-    /* Valeur symetrique pour test bilateral                                */
-    /* x_sym : plus petite valeur telle que P(X=x_sym) <= P(X=x_obs)      */
-    /* du cote oppose a x_obs par rapport a la moyenne                     */
-    /* ------------------------------------------------------------------ */
-    var x_sym = NaN;
-    if (side === 'bilateral' && !isNaN(x_obs)) {
-        if (is_discrete) {
-            var p_obs = pdf_fn(Math.round(x_obs));
-            var mu_d  = (law === 'binomial') ? params[0] * params[1] : params[0];
-            var j_sym;
-            if (_gt(x_obs, mu_d)) {
-                /* x_obs a droite : chercher x_sym a gauche */
-                j_sym = Math.floor(mu_d);
-                while (_gt(j_sym, 0) && _gt(pdf_fn(j_sym), p_obs)) j_sym--;
-            } else {
-                /* x_obs a gauche : chercher x_sym a droite */
-                j_sym = Math.ceil(mu_d);
-                var n_disc = (law === 'binomial') ? params[0] : Math.round(params[0] * 10);
-                while (_lt(j_sym, n_disc) && _gt(pdf_fn(j_sym), p_obs)) j_sym++;
-            }
-            x_sym = j_sym;
+        
+        /* Determination si la barre est dans la zone extreme */
+        var k_r = Math.round(x_obs);
+        var k_s = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
+        var on_obs_side = _gte(k_iter, k_r);
+        var on_sym_side = !isNaN(k_s) && _lte(k_iter, k_s);
+        var is_extreme = (!isNaN(x_obs)
+                          && _lte(pmf_k, p_obs_d)
+                          && (on_obs_side || on_sym_side));
+        
+        /* Determination des barres specifiques (x_obs et x_sym) */
+        var is_obs_bar = (k_iter === k_r);
+        var is_sym_bar = (!isNaN(k_s) && k_iter === k_s);
+        
+        /* Attribution des bordures :
+           - Toutes les barres extremes ont une bordure orange fine (sauf si c'est x_obs ou x_sym)
+           - x_obs et x_sym ont une bordure epaisse de leur couleur respective
+        */
+        if (is_obs_bar) {
+            border_arr.push(C_OBS);
+            border_w_arr.push(3);  /* Bordure epaisse pour la valeur observee */
+        } else if (is_sym_bar) {
+            border_arr.push(C_SYM);
+            border_w_arr.push(3);  /* Bordure epaisse pour la valeur symetrique */
+        } else if (is_extreme) {
+            border_arr.push(C_OBS);
+            border_w_arr.push(1);  /* Bordure fine pour les autres barres extremes */
         } else {
-            /* Loi continue : symetrie exacte par rapport a la mediane */
-            x_sym = 2 * inv_fn(0.5) - x_obs;
+            border_arr.push('rgba(0,0,0,0)');
+            border_w_arr.push(0);
         }
+        
+        k_iter++;
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Bornes du graphique                                                  */
-    /* ------------------------------------------------------------------ */
-    var x_min, x_max;
-    if (opts.x_min !== undefined && opts.x_max !== undefined) {
-        x_min = opts.x_min;
-        x_max = opts.x_max;
-    } else if (is_discrete) {
-        var mu_d2 = (law === 'binomial') ? params[0] * params[1] : params[0];
-        var sd_d  = (law === 'binomial')
-                  ? Math.sqrt(params[0] * params[1] * (1 - params[1]))
-                  : Math.sqrt(params[0]);
-        x_min = Math.max(0, Math.floor(mu_d2 - 4 * sd_d));
-        x_max = Math.min(
-            (law === 'binomial' ? params[0] : mu_d2 + 6 * sd_d),
-            Math.ceil(mu_d2 + 4 * sd_d)
-        );
-    } else {
-        x_min = inv_fn(0.0005);
-        x_max = inv_fn(0.9995);
-        if (!isFinite(x_min) || isNaN(x_min)) x_min = -5;
-        if (!isFinite(x_max) || isNaN(x_max)) x_max =  5;
-    }
-    if (!isNaN(x_obs) && _gt(x_obs, x_max)) x_max = x_obs + 1;
-    if (!isNaN(x_obs) && _lt(x_obs, x_min)) x_min = x_obs - 1;
-    if (!isNaN(x_sym) && _gt(x_sym, x_max)) x_max = x_sym + 1;
-    if (!isNaN(x_sym) && _lt(x_sym, x_min)) x_min = x_sym - 1;
-
-    /* ------------------------------------------------------------------ */
-    /* Helpers labels                                                       */
-    /* _bare : retire les $ encadrants pour imbriquer dans un label LaTeX  */
-    /* _fmt  : arrondi a 3 decimales                                       */
-    /* ------------------------------------------------------------------ */
-    var _bare = function(s) {
-        return (s.charAt(0) === '$' && s.charAt(s.length - 1) === '$')
-               ? s.slice(1, s.length - 1) : s;
-    };
-    var _fmt = function(v) { return Math.round(v * 1000) / 1000; };
-
-    /* Label LaTeX pour annotation (fleche) — affiche bien dans Plotly+MathJax */
-    var _latex_ann = function(subscript, val) {
-        return '$' + _bare(x_title) + '_{\\text{' + subscript + '}} = ' + _fmt(val) + '$';
-    };
-
-    /* Label plain pour hovertemplate (pas de LaTeX dans les tooltips Plotly) */
-    var _plain_ann = function(subscript, val) {
-        return _bare(x_title) + '_' + subscript + ' = ' + _fmt(val);
-    };
-
-    /* ------------------------------------------------------------------ */
-    /* Annotations : fleches verticales sur la courbe                      */
-    /* ax=0 + axref/ayref='pixel' => fleche strictement verticale          */
-    /* ------------------------------------------------------------------ */
-    var annotations = [];
-
-    var _make_ann = function(xv, y_anchor, latex_lbl, color) {
-        return {
-            x: xv, y: y_anchor,
-            xref: 'x', yref: 'y',
-            text: latex_lbl,
-            showarrow: true, arrowhead: 2, arrowcolor: color,
-            ax: 0, ay: -45,
-            axref: 'pixel', ayref: 'pixel',
-            font: { color: color, size: 11 },
-            bgcolor: 'rgba(255,255,255,0.95)',
-            bordercolor: color, borderwidth: 1, borderpad: 3
-        };
-    };
-
-    if (!isNaN(x_obs)) {
-        var y_obs = pdf_fn(x_obs);
-        if (!isFinite(y_obs) || isNaN(y_obs)) y_obs = 0;
-        annotations.push(_make_ann(x_obs, y_obs, _latex_ann('obs', x_obs), C_OBS));
-    }
-    if (!isNaN(x_sym)) {
-        var y_sym = pdf_fn(x_sym);
-        if (!isFinite(y_sym) || isNaN(y_sym)) y_sym = 0;
-        annotations.push(_make_ann(x_sym, y_sym, _latex_ann('sym', x_sym), C_SYM));
-    }
-    if (!isNaN(x_crit_lo)) {
-        var y_clo = pdf_fn(x_crit_lo);
-        if (!isFinite(y_clo) || isNaN(y_clo)) y_clo = 0;
-        annotations.push(_make_ann(x_crit_lo, y_clo, _latex_ann('crit', x_crit_lo), C_CRIT));
-    }
-    if (!isNaN(x_crit_hi)) {
-        var y_chi2 = pdf_fn(x_crit_hi);
-        if (!isFinite(y_chi2) || isNaN(y_chi2)) y_chi2 = 0;
-        annotations.push(_make_ann(x_crit_hi, y_chi2, _latex_ann('crit', x_crit_hi), C_CRIT));
-    }
-
-    /* ------------------------------------------------------------------ */
-    /* fillpattern Plotly pour les hachures (disponible depuis Plotly v2)  */
-    /* shape='/' + fgcolor + bgcolor => hachures diagonales                */
-    /* ------------------------------------------------------------------ */
-    var _hatch = function(fgcolor, bgcolor) {
-        return { shape: '/', size: 8, fgcolor: fgcolor, bgcolor: bgcolor, fgopacity: 0.9 };
-    };
-
-    /* ------------------------------------------------------------------ */
-    /* Legendes : uniquement zones de rejet/non-rejet + x_obs + x_crit    */
-    /* (pas x_sym dans la legende)                                         */
-    /* ------------------------------------------------------------------ */
-    var legend_traces = [
-        {
-            x: [null], y: [null], type: 'scatter', mode: 'markers',
-            marker: { color: C_REJECT_SOLID, size: 14, symbol: 'square' },
-            name: 'Zone de rejet de H₀',
-            showlegend: true, hoverinfo: 'skip'
+    /* hovertemplate en texte plain (pas de LaTeX dans les tooltips) */
+    var bare_xt = _bare(x_title);
+    var bare_yt = _bare(y_title);
+    var trace_d = {
+        x: ks_arr, y: pmf_arr, type: 'bar',
+        marker: {
+            color: col_arr,
+            line: { color: border_arr, width: border_w_arr }
         },
-        {
-            x: [null], y: [null], type: 'scatter', mode: 'markers',
-            marker: { color: C_NOREJECT, size: 14, symbol: 'square' },
-            name: 'Zone de non-rejet de H₀',
-            showlegend: true, hoverinfo: 'skip'
-        },
-        {
-            x: [null], y: [null], type: 'scatter', mode: 'markers',
-            marker: {
-                color: 'rgba(0,0,0,0)', size: 14, symbol: 'square',
-                line: { color: C_OBS, width: 2 }
-            },
-            name: 'Zone au moins aussi extrême que la valeur observée',
-            showlegend: true, hoverinfo: 'skip'
-        }
-    ];
-
-    /* ------------------------------------------------------------------ */
-    /* Layout commun                                                        */
-    /* ------------------------------------------------------------------ */
-    var layout = {
-        title: { text: title, font: { size: 14, color: C_TEXT } },
-        xaxis: {
-            title: { text: x_title, font: { size: 12, color: C_TEXT } },
-            color: C_TEXT, gridcolor: C_GRID, zeroline: false, tickcolor: C_TEXT
-        },
-        yaxis: {
-            title: { text: y_title, font: { size: 12, color: C_TEXT } },
-            color: C_TEXT, gridcolor: C_GRID, zeroline: false, tickcolor: C_TEXT
-        },
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor:  '#ffffff',
-        font: { family: 'Arial,sans-serif', color: C_TEXT },
-        annotations: annotations,
-        showlegend: true,
-        legend: {
-            orientation: 'h', x: 0, y: -0.22,
-            font: { size: 11, color: C_TEXT },
-            bgcolor: 'rgba(255,255,255,0)',
-            borderwidth: 0
-        },
-        margin: { l: 60, r: 30, t: 80, b: 100 }
+        hovertemplate: bare_xt + ' = %{x}<br>' + bare_yt + ' = %{y:.5f}<extra></extra>',
+        showlegend: false
     };
 
-    /* Activer le rendu LaTeX via MathJax dans ce graphique */
-    var plotly_opts = { responsive: true, displayModeBar: false, mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js' };
-
-    /* ------------------------------------------------------------------ */
-    /* LOI DISCRETE : barres colorees + hachures pour zones extremes       */
-    /* Coloriage :                                                          */
-    /*   - zone de rejet (x <= x_crit_lo ou x >= x_crit_hi) : rouge plein */
-    /*   - zone au moins aussi extreme que x_obs (hors rejet) : hachures  */
-    /*   - reste : bleu non-rejet                                          */
-    /*   - x_obs et x_sym : bordure orange epaisse                        */
-    /* ------------------------------------------------------------------ */
-    if (is_discrete) {
-
-        /* p_obs pour determiner les barres "au moins aussi extremes" */
-        var p_obs_d = (!isNaN(x_obs)) ? pdf_fn(Math.round(x_obs)) : -1;
-
-        var ks_arr     = [];
-        var pmf_arr    = [];
-        var col_arr    = [];
-        var border_arr   = [];   /* couleur bordure */
-        var border_w_arr = [];   /* largeur bordure */
-
-        var k_iter = Math.round(x_min);
-        while (_lte(k_iter, Math.round(x_max))) {
-            ks_arr.push(k_iter);
-            var pmf_k = pdf_fn(k_iter);
-            pmf_arr.push(pmf_k);
-
-            var is_rej  = (!isNaN(x_crit_lo) && _lte(k_iter, x_crit_lo))
-                       || (!isNaN(x_crit_hi) && _gte(k_iter, x_crit_hi));
-            
-            /* Determination de la couleur de la barre */
-            if (is_rej) {
-                col_arr.push(C_REJECT_BAR);
-            } else {
-                col_arr.push(C_NOREJECT_BAR);
-            }
-            
-            /* Determination de la bordure */
-            var k_r = Math.round(x_obs);
-            var k_s = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
-            var is_obs_bar = (k_iter === k_r);
-            var is_sym_bar = (!isNaN(k_s) && k_iter === k_s);
-            
-            /* Bordure orange pour x_obs et x_sym */
-            if (is_obs_bar) {
-                border_arr.push(C_OBS);
-                border_w_arr.push(3);  /* Bordure plus epaisse pour la valeur observee */
-            } else if (is_sym_bar) {
-                border_arr.push(C_SYM);
-                border_w_arr.push(3);  /* Bordure plus epaisse pour la valeur symetrique */
-            } else {
-                border_arr.push('rgba(0,0,0,0)');
-                border_w_arr.push(0);
-            }
-            
-            k_iter++;
-        }
-
-        /* hovertemplate en texte plain (pas de LaTeX dans les tooltips) */
-        var bare_xt = _bare(x_title);
-        var bare_yt = _bare(y_title);
-        var trace_d = {
-            x: ks_arr, y: pmf_arr, type: 'bar',
-            marker: {
-                color: col_arr,
-                line: { color: border_arr, width: border_w_arr }
-            },
-            hovertemplate: bare_xt + ' = %{x}<br>' + bare_yt + ' = %{y:.5f}<extra></extra>',
-            showlegend: false
-        };
-
-        Plotly.newPlot(div_id, [trace_d].concat(legend_traces), layout, plotly_opts);
-
-    /* ------------------------------------------------------------------ */
-    /* LOI CONTINUE : courbe de densite + zones colorees                   */
-    /* ------------------------------------------------------------------ */
-    } else {
-
-        var step = (x_max - x_min) / n_points;
-
-        /* Construire xs en inserant les valeurs critiques exactes */
-        var xs = [];
-        var ii = 0;
-        while (_lte(ii, n_points)) {
-            xs.push(x_min + ii * step);
-            ii++;
-        }
-        if (!isNaN(x_crit_lo)) {
-            xs.push(x_crit_lo - 1e-9);
-            xs.push(x_crit_lo);
-            xs.push(x_crit_lo + 1e-9);
-        }
-        if (!isNaN(x_crit_hi)) {
-            xs.push(x_crit_hi - 1e-9);
-            xs.push(x_crit_hi);
-            xs.push(x_crit_hi + 1e-9);
-        }
-        xs.sort(function(a, b) { return a - b; });
-
-        /* Valeurs de densite */
-        var ys = [];
-        var jj = 0;
-        while (_lt(jj, xs.length)) {
-            var yv = pdf_fn(xs[jj]);
-            ys.push((isFinite(yv) && _gte(yv, 0)) ? yv : 0);
-            jj++;
-        }
-
-        /* Max de la courbe pour la ligne verticale */
-        var y_max_c = 0;
-        var mm = 0;
-        while (_lt(mm, ys.length)) { if (_gt(ys[mm], y_max_c)) y_max_c = ys[mm]; mm++; }
-
-        /* hovertemplate en texte plain */
-        var bare_xt2 = _bare(x_title);
-        var bare_yt2 = _bare(y_title);
-
-        /* Zone extreme : contour couleur C_OBS autour de la zone          */
-        var extreme_traces = [];
-
-        /* 
-         * Fonction pour ajouter une zone extreme avec contour orange
-         * La zone est un polygone fermé qui suit la courbe d'un côté et l'axe des x de l'autre.
-         * La bordure inférieure (sur l'axe des x) est TOUJOURS présente.
-         */
-        var _add_extreme_zone = function(xa, xb) {
-            // Récupérer les points de la courbe entre xa et xb
-            var xZ = [], yZ = [];
-            var hz = 0;
-            while (_lt(hz, xs.length)) {
-                if (_gte(xs[hz], xa) && _lte(xs[hz], xb)) {
-                    xZ.push(xs[hz]); 
-                    yZ.push(ys[hz]);
-                }
-                hz++;
-            }
-            if (!xZ.length) return;
-            
-            // Récupérer les valeurs y aux bornes
-            var idx_a = -1, idx_b = -1;
-            for (var idx = 0; idx < xs.length; idx++) {
-                if (Math.abs(xs[idx] - xa) < 1e-9) idx_a = idx;
-                if (Math.abs(xs[idx] - xb) < 1e-9) idx_b = idx;
-            }
-            var y_at_xa = (idx_a !== -1) ? ys[idx_a] : 0;
-            var y_at_xb = (idx_b !== -1) ? ys[idx_b] : 0;
-            
-            // Construire le polygone fermé :
-            // 1. Commencer à (xa, 0) - point bas gauche
-            // 2. Monter verticalement à (xa, y(xa)) si nécessaire
-            // 3. Suivre la courbe jusqu'à (xb, y(xb))
-            // 4. Descendre verticalement à (xb, 0)
-            // 5. Revenir à (xa, 0) pour fermer (bordure basse)
-            
-            var contour_x, contour_y;
-            
-            // Vérifier si on est à l'extrémité gauche (xa === x_min)
-            var at_left_boundary = (Math.abs(xa - x_min) < 1e-9);
-            // Vérifier si on est à l'extrémité droite (xb === x_max)
-            var at_right_boundary = (Math.abs(xb - x_max) < 1e-9);
-            
-            if (at_left_boundary) {
-                // Si on part de la borne gauche, on commence directement sur la courbe
-                contour_x = xZ.concat([xb]);
-                contour_y = yZ.concat([0]);
-            } else if (at_right_boundary) {
-                // Si on arrive à la borne droite, on termine directement sur l'axe
-                contour_x = [xa].concat(xZ);
-                contour_y = [0].concat(yZ);
-            } else {
-                // Cas général : polygone fermé complet
-                contour_x = [xa].concat(xZ).concat([xb]);
-                contour_y = [0].concat(yZ).concat([0]);
-            }
-            
-            extreme_traces.push({
-                x: contour_x,
-                y: contour_y,
-                type: 'scatter', mode: 'lines',
-                fill: 'none',
-                line: { color: C_OBS, width: 2 },
-                name: '', hoverinfo: 'skip', showlegend: false
-            });
-        };
-
-        if (!isNaN(x_obs)) {
-            if (side === 'right') {
-                /* Test unilatéral à droite : zone à droite de x_obs */
-                _add_extreme_zone(x_obs, x_max);
-            }
-            else if (side === 'left') {
-                /* Test unilatéral à gauche : zone à gauche de x_obs */
-                _add_extreme_zone(x_min, x_obs);
-            }
-            else if (side === 'bilateral') {
-                /* Test bilatéral : deux zones (côté x_obs et côté x_sym) */
-                if (!isNaN(x_sym)) {
-                    /* Côté x_sym (gauche) */
-                    _add_extreme_zone(x_min, x_sym);
-                }
-                /* Côté x_obs (droite) */
-                _add_extreme_zone(x_obs, x_max);
-            }
-        }
-
-        /* Couche 1 : remplissage bleu seul, sans ligne */
-        var traces = [{
-            x: xs, y: ys,
-            type: 'scatter', mode: 'lines', fill: 'tozeroy',
-            fillcolor: C_NOREJECT,
-            line: { color: 'rgba(0,0,0,0)', width: 0 },
-            hovertemplate: bare_xt2 + ' = %{x:.4f}<br>' + bare_yt2 + ' = %{y:.5f}<extra></extra>',
-            name: '', showlegend: false
-        }];
-
-        /* Zone de rejet gauche */
-        if (!isNaN(x_crit_lo)) {
-            var xRL = [], yRL = [];
-            var rr = 0;
-            while (_lt(rr, xs.length)) {
-                if (_lte(xs[rr], x_crit_lo)) { xRL.push(xs[rr]); yRL.push(ys[rr]); }
-                rr++;
-            }
-            if (xRL.length) {
-                traces.push({
-                    x: [xRL[0]].concat(xRL).concat([xRL[xRL.length - 1]]),
-                    y: [0].concat(yRL).concat([0]),
-                    type: 'scatter', mode: 'lines', fill: 'tozeroy',
-                    fillcolor: C_REJECT, line: { color: C_CRIT, width: 0 },
-                    name: '', hoverinfo: 'skip', showlegend: false
-                });
-            }
-        }
-
-        /* Zone de rejet droite */
-        if (!isNaN(x_crit_hi)) {
-            var xRR = [], yRR = [];
-            var ss = 0;
-            while (_lt(ss, xs.length)) {
-                if (_gte(xs[ss], x_crit_hi)) { xRR.push(xs[ss]); yRR.push(ys[ss]); }
-                ss++;
-            }
-            if (xRR.length) {
-                traces.push({
-                    x: [xRR[0]].concat(xRR).concat([xRR[xRR.length - 1]]),
-                    y: [0].concat(yRR).concat([0]),
-                    type: 'scatter', mode: 'lines', fill: 'tozeroy',
-                    fillcolor: C_REJECT, line: { color: C_CRIT, width: 0 },
-                    name: '', hoverinfo: 'skip', showlegend: false
-                });
-            }
-        }
-
-        /* Couche 4 : courbe (ligne seule, sans fill) par-dessus tout */
-        traces.push({
-            x: xs, y: ys,
-            type: 'scatter', mode: 'lines',
-            line: { color: C_CURVE, width: 2 },
-            hoverinfo: 'skip', name: '', showlegend: false
-        });
-
-        /* Couche 5 : lignes verticales x_obs / x_sym */
-        if (!isNaN(x_obs)) {
-            var y_obs_top = pdf_fn(x_obs);
-            if (!isFinite(y_obs_top) || y_obs_top === 0) y_obs_top = y_max_c * 0.9;
-            traces.push({
-                x: [x_obs, x_obs], y: [0, y_obs_top * 1.15],
-                type: 'scatter', mode: 'lines',
-                line: { color: C_OBS, width: 2, dash: 'dot' },
-                name: '', hoverinfo: 'skip', showlegend: false
-            });
-        }
-
-        /* Ligne verticale pointillee : valeur symetrique */
-        if (!isNaN(x_sym)) {
-            var y_sym_top = pdf_fn(x_sym);
-            if (!isFinite(y_sym_top) || y_sym_top === 0) y_sym_top = y_max_c * 0.9;
-            traces.push({
-                x: [x_sym, x_sym], y: [0, y_sym_top * 1.15],
-                type: 'scatter', mode: 'lines',
-                line: { color: C_SYM, width: 2, dash: 'dot' },
-                name: '', hoverinfo: 'skip', showlegend: false
-            });
-        }
-
-        /* Couche finale : contour orange par-dessus tout */
-        traces = traces.concat(extreme_traces);
-        Plotly.newPlot(div_id, traces.concat(legend_traces), layout, plotly_opts);
-    }
+    Plotly.newPlot(div_id, [trace_d].concat(legend_traces), layout, plotly_opts);
 }
-/*==============================================================================================================================*/
