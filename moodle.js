@@ -17,8 +17,8 @@ function significant_digits(x, n, sci) {
 
         //x1=Math.round(Math.round(Math.abs(x)/Math.pow(10,Math.ceil(Math.log10(Math.abs(x)))-(n+1)))/10);
 
-        x1 = Math.round(Math.abs(x) / Math.pow(10, Math.ceil(Math.log10(Math.abs(x))) - (n))) // x1 est le premier chiffre du nombre x arrondi avec chiffre significatif
 
+        x1 = Math.round(Math.abs(x) / Math.pow(10, Math.ceil(Math.log10(Math.abs(x))) - (n))) // x1 est le premier chiffre du nombre x arrondi avec chiffre significatif
         s1 = "" + x1;
 
         s1 = s1.substring(0, n)
@@ -3076,7 +3076,6 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 }
 /*==============================================================================================================================*/
 
-
 /*==============================================================================================================================*/
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
@@ -3424,7 +3423,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     /* ------------------------------------------------------------------ */
     /* LOI CONTINUE                                                       */
-    /* Version ORIGINALE avec open_start/open_end pour EVITER les lignes verticales */
+    /* La bordure orange longe TOUJOURS l'axe des abscisses               */
     /* ------------------------------------------------------------------ */
     } else {
 
@@ -3465,7 +3464,11 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         var extreme_traces = [];
 
-        // VERSION ORIGINALE QUI FONCTIONNE SANS LIGNES VERTICALES
+        /* 
+         * Version corrigee : la bordure longe TOUJOURS l'axe des abscisses
+         * Pour cela, on ajoute systematiquement les points (xa,0) et (xb,0)
+         * MAIS on utilise open_start/open_end pour controler les segments verticaux
+         */
         var _add_extreme_zone = function(xa, xb, open_start, open_end) {
             var xZ = [], yZ = [];
             var hz = 0;
@@ -3487,26 +3490,29 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                 if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
             }
             
-            // Construction du contour SANS lignes verticales indesirables
+            // On construit le contour en incluant TOUJOURS le bas (axe des x)
+            // sauf si open_start=true ET open_end=true (cas qui n'arrive pas dans notre usage)
             if (open_start && open_end) {
-                // Les deux cotes ouverts : on trace juste la courbe
+                // Cas particulier : les deux cotes ouverts (rare)
                 contour_x = xZ;
                 contour_y = yZ;
             } 
             else if (open_start && !open_end) {
-                // Ouvert a gauche, ferme a droite : on descend a la fin
-                contour_x = xZ.concat([xb]);
-                contour_y = yZ.concat([0]);
+                // Ouvert a gauche (on part de la courbe), ferme a droite
+                // On inclut le bas a droite uniquement
+                contour_x = xZ.concat([xb, xa]);
+                contour_y = yZ.concat([0, 0]);
             }
             else if (!open_start && open_end) {
-                // Ferme a gauche, ouvert a droite : on monte au debut
-                contour_x = [xa].concat(xZ);
-                contour_y = [0].concat(yZ);
+                // Ferme a gauche, ouvert a droite
+                // On inclut le bas a gauche uniquement
+                contour_x = [xa, xb].concat(xZ);
+                contour_y = [0, 0].concat(yZ);
             }
             else {
-                // Les deux cotes fermes : polygone complet
-                contour_x = [xa].concat(xZ).concat([xb]);
-                contour_y = [0].concat(yZ).concat([0]);
+                // Les deux cotes fermes : polygone complet avec le bas
+                contour_x = [xa].concat(xZ).concat([xb, xa]);
+                contour_y = [0].concat(yZ).concat([0, 0]);
             }
             
             extreme_traces.push({
@@ -3521,7 +3527,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         if (!isNaN(x_obs)) {
             if (side === 'right') {
-                // Zone a droite de x_obs : ouvert a gauche (on part de la courbe), ferme a droite
+                // Zone a droite de x_obs : ouvert a gauche, ferme a droite
                 _add_extreme_zone(x_obs, x_max, true, false);
             }
             else if (side === 'left') {
