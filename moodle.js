@@ -3077,6 +3077,7 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 /*==============================================================================================================================*/
 
 
+
 /*==============================================================================================================================*/
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
@@ -3209,18 +3210,15 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             var mu_d  = (law === 'binomial') ? params[0] * params[1] : params[0];
             var j_sym;
             if (_gt(x_obs, mu_d)) {
-                /* x_obs a droite : chercher x_sym a gauche */
                 j_sym = Math.floor(mu_d);
                 while (_gt(j_sym, 0) && _gt(pdf_fn(j_sym), p_obs)) j_sym--;
             } else {
-                /* x_obs a gauche : chercher x_sym a droite */
                 j_sym = Math.ceil(mu_d);
                 var n_disc = (law === 'binomial') ? params[0] : Math.round(params[0] * 10);
                 while (_lt(j_sym, n_disc) && _gt(pdf_fn(j_sym), p_obs)) j_sym++;
             }
             x_sym = j_sym;
         } else {
-            /* Loi continue : symetrie exacte par rapport a la mediane */
             x_sym = 2 * inv_fn(0.5) - x_obs;
         }
     }
@@ -3255,8 +3253,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     /* ------------------------------------------------------------------ */
     /* Helpers labels                                                       */
-    /* _bare : retire les $ encadrants pour imbriquer dans un label LaTeX  */
-    /* _fmt  : arrondi a 3 decimales                                       */
     /* ------------------------------------------------------------------ */
     var _bare = function(s) {
         return (s.charAt(0) === '$' && s.charAt(s.length - 1) === '$')
@@ -3264,50 +3260,49 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     };
     var _fmt = function(v) { return Math.round(v * 1000) / 1000; };
 
-    /* Label LaTeX pour annotation (fleche) — TOUS EN ORANGE */
     var _latex_ann = function(subscript, val) {
         return '$' + _bare(x_title) + '_{\\text{' + subscript + '}} = ' + _fmt(val) + '$';
     };
 
     /* ------------------------------------------------------------------ */
     /* Annotations : fleches verticales sur la courbe                      */
-    /* TOUTES les fleches sont oranges (C_OBS)                             */
+    /* obs et sym : orange, crit : rouge                                   */
     /* ------------------------------------------------------------------ */
     var annotations = [];
 
-    var _make_ann = function(xv, y_anchor, latex_lbl) {
+    var _make_ann = function(xv, y_anchor, latex_lbl, color) {
         return {
             x: xv, y: y_anchor,
             xref: 'x', yref: 'y',
             text: latex_lbl,
-            showarrow: true, arrowhead: 2, arrowcolor: C_OBS,
+            showarrow: true, arrowhead: 2, arrowcolor: color,
             ax: 0, ay: -45,
             axref: 'pixel', ayref: 'pixel',
-            font: { color: C_OBS, size: 11 },
+            font: { color: color, size: 11 },
             bgcolor: 'rgba(255,255,255,0.95)',
-            bordercolor: C_OBS, borderwidth: 1, borderpad: 3
+            bordercolor: color, borderwidth: 1, borderpad: 3
         };
     };
 
     if (!isNaN(x_obs)) {
         var y_obs = pdf_fn(x_obs);
         if (!isFinite(y_obs) || isNaN(y_obs)) y_obs = 0;
-        annotations.push(_make_ann(x_obs, y_obs, _latex_ann('obs', x_obs)));
+        annotations.push(_make_ann(x_obs, y_obs, _latex_ann('obs', x_obs), C_OBS));
     }
     if (!isNaN(x_sym)) {
         var y_sym = pdf_fn(x_sym);
         if (!isFinite(y_sym) || isNaN(y_sym)) y_sym = 0;
-        annotations.push(_make_ann(x_sym, y_sym, _latex_ann('sym', x_sym)));
+        annotations.push(_make_ann(x_sym, y_sym, _latex_ann('sym', x_sym), C_OBS));
     }
     if (!isNaN(x_crit_lo)) {
         var y_clo = pdf_fn(x_crit_lo);
         if (!isFinite(y_clo) || isNaN(y_clo)) y_clo = 0;
-        annotations.push(_make_ann(x_crit_lo, y_clo, _latex_ann('crit', x_crit_lo)));
+        annotations.push(_make_ann(x_crit_lo, y_clo, _latex_ann('crit', x_crit_lo), C_CRIT));
     }
     if (!isNaN(x_crit_hi)) {
         var y_chi2 = pdf_fn(x_crit_hi);
         if (!isFinite(y_chi2) || isNaN(y_chi2)) y_chi2 = 0;
-        annotations.push(_make_ann(x_crit_hi, y_chi2, _latex_ann('crit', x_crit_hi)));
+        annotations.push(_make_ann(x_crit_hi, y_chi2, _latex_ann('crit', x_crit_hi), C_CRIT));
     }
 
     /* ------------------------------------------------------------------ */
@@ -3364,13 +3359,10 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         margin: { l: 60, r: 30, t: 80, b: 100 }
     };
 
-    /* Activer le rendu LaTeX via MathJax dans ce graphique */
     var plotly_opts = { responsive: true, displayModeBar: false, mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js' };
 
     /* ------------------------------------------------------------------ */
-    /* LOI DISCRETE : barres colorees + bordures pour zones extremes       */
-    /* Toutes les barres extremes (dont x_obs et x_sym) ont une bordure    */
-    /* orange de meme epaisseur (1)                                        */
+    /* LOI DISCRETE                                                       */
     /* ------------------------------------------------------------------ */
     if (is_discrete) {
 
@@ -3397,7 +3389,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                 col_arr.push(C_NOREJECT_BAR);
             }
             
-            /* Determination si la barre est dans la zone extreme */
             var k_r = Math.round(x_obs);
             var k_s = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
             var on_obs_side = _gte(k_iter, k_r);
@@ -3406,7 +3397,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
                               && _lte(pmf_k, p_obs_d)
                               && (on_obs_side || on_sym_side));
             
-            /* Toutes les barres extremes ont la meme bordure orange fine */
             if (is_extreme) {
                 border_arr.push(C_OBS);
                 border_w_arr.push(1);
@@ -3433,14 +3423,14 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         Plotly.newPlot(div_id, [trace_d].concat(legend_traces), layout, plotly_opts);
 
     /* ------------------------------------------------------------------ */
-    /* LOI CONTINUE : courbe de densite + zones colorees                   */
-    /* PAS de bordure au niveau de x_obs et x_sym                          */
+    /* LOI CONTINUE                                                       */
+    /* La bordure orange suit UNIQUEMENT la courbe et l'axe des x         */
+    /* Pas de ligne verticale aux bornes de la zone                       */
     /* ------------------------------------------------------------------ */
     } else {
 
         var step = (x_max - x_min) / n_points;
 
-        /* Construire xs en inserant les valeurs critiques exactes */
         var xs = [];
         var ii = 0;
         while (_lte(ii, n_points)) {
@@ -3459,7 +3449,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         }
         xs.sort(function(a, b) { return a - b; });
 
-        /* Valeurs de densite */
         var ys = [];
         var jj = 0;
         while (_lt(jj, xs.length)) {
@@ -3468,7 +3457,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             jj++;
         }
 
-        /* Max de la courbe pour la ligne verticale */
         var y_max_c = 0;
         var mm = 0;
         while (_lt(mm, ys.length)) { if (_gt(ys[mm], y_max_c)) y_max_c = ys[mm]; mm++; }
@@ -3476,7 +3464,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         var bare_xt2 = _bare(x_title);
         var bare_yt2 = _bare(y_title);
 
-        /* Zone extreme : contour couleur C_OBS autour de la zone */
+        /* Zone extreme : contour orange qui suit la courbe et l'axe des x */
         var extreme_traces = [];
 
         var _add_extreme_zone = function(xa, xb) {
@@ -3491,6 +3479,8 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             }
             if (!xZ.length) return;
             
+            // On construit le contour : point bas gauche -> courbe -> point bas droit
+            // On descend directement à l'axe sans segment vertical supplementaire
             var contour_x = [xa].concat(xZ).concat([xb]);
             var contour_y = [0].concat(yZ).concat([0]);
             
@@ -3519,7 +3509,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             }
         }
 
-        /* Couche 1 : remplissage bleu seul, sans ligne */
+        /* Remplissage bleu */
         var traces = [{
             x: xs, y: ys,
             type: 'scatter', mode: 'lines', fill: 'tozeroy',
@@ -3567,7 +3557,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             }
         }
 
-        /* Couche 4 : courbe (ligne seule, sans fill) par-dessus tout */
+        /* Courbe principale */
         traces.push({
             x: xs, y: ys,
             type: 'scatter', mode: 'lines',
@@ -3575,7 +3565,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             hoverinfo: 'skip', name: '', showlegend: false
         });
 
-        /* Couche 5 : lignes verticales x_obs / x_sym - PAS de bordure, juste la ligne */
+        /* Lignes verticales x_obs et x_sym (pointillees, sans bordure) */
         if (!isNaN(x_obs)) {
             var y_obs_top = pdf_fn(x_obs);
             if (!isFinite(y_obs_top) || y_obs_top === 0) y_obs_top = y_max_c * 0.9;
@@ -3587,7 +3577,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             });
         }
 
-        /* Ligne verticale pointillee : valeur symetrique */
         if (!isNaN(x_sym)) {
             var y_sym_top = pdf_fn(x_sym);
             if (!isFinite(y_sym_top) || y_sym_top === 0) y_sym_top = y_max_c * 0.9;
@@ -3599,7 +3588,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             });
         }
 
-        /* Couche finale : contour orange par-dessus tout */
         traces = traces.concat(extreme_traces);
         Plotly.newPlot(div_id, traces.concat(legend_traces), layout, plotly_opts);
     }
