@@ -3075,7 +3075,6 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
     });
 }
 /*==============================================================================================================================*/
-
 /*==============================================================================================================================*/
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
@@ -3361,7 +3360,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     /* ------------------------------------------------------------------ */
     /* LOI DISCRETE                                                       */
-    /* Bordure orange d'epaisseur 2 (doublee)                             */
     /* ------------------------------------------------------------------ */
     if (is_discrete) {
 
@@ -3424,6 +3422,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     /* ------------------------------------------------------------------ */
     /* LOI CONTINUE                                                       */
     /* La bordure orange longe TOUJOURS l'axe des abscisses               */
+    /* Solution: on trace un polygone ferme                               */
     /* ------------------------------------------------------------------ */
     } else {
 
@@ -3465,11 +3464,11 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         var extreme_traces = [];
 
         /* 
-         * Version corrigee : la bordure longe TOUJOURS l'axe des abscisses
-         * Pour cela, on ajoute systematiquement les points (xa,0) et (xb,0)
-         * MAIS on utilise open_start/open_end pour controler les segments verticaux
+         * Version corrigee : on trace un polygone FERME
+         * Chemin: (xa, 0) -> (xa, y(xa)) -> courbe -> (xb, y(xb)) -> (xb, 0) -> retour à (xa, 0)
+         * Ainsi la ligne du bas (entre xb et xa) est explicitement tracee
          */
-        var _add_extreme_zone = function(xa, xb, open_start, open_end) {
+        var _add_extreme_zone = function(xa, xb) {
             var xZ = [], yZ = [];
             var hz = 0;
             while (_lt(hz, xs.length)) {
@@ -3481,39 +3480,22 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             }
             if (!xZ.length) return;
             
-            var contour_x, contour_y;
+            // Recuperer les valeurs y aux bornes
             var y_at_xa = 0;
             var y_at_xb = 0;
-            
             for (var idx = 0; idx < xs.length; idx++) {
                 if (Math.abs(xs[idx] - xa) < 1e-9) y_at_xa = ys[idx];
                 if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
             }
             
-            // On construit le contour en incluant TOUJOURS le bas (axe des x)
-            // sauf si open_start=true ET open_end=true (cas qui n'arrive pas dans notre usage)
-            if (open_start && open_end) {
-                // Cas particulier : les deux cotes ouverts (rare)
-                contour_x = xZ;
-                contour_y = yZ;
-            } 
-            else if (open_start && !open_end) {
-                // Ouvert a gauche (on part de la courbe), ferme a droite
-                // On inclut le bas a droite uniquement
-                contour_x = xZ.concat([xb, xa]);
-                contour_y = yZ.concat([0, 0]);
-            }
-            else if (!open_start && open_end) {
-                // Ferme a gauche, ouvert a droite
-                // On inclut le bas a gauche uniquement
-                contour_x = [xa, xb].concat(xZ);
-                contour_y = [0, 0].concat(yZ);
-            }
-            else {
-                // Les deux cotes fermes : polygone complet avec le bas
-                contour_x = [xa].concat(xZ).concat([xb, xa]);
-                contour_y = [0].concat(yZ).concat([0, 0]);
-            }
+            // Construction du polygone ferme:
+            // 1. Partir de (xa, 0)
+            // 2. Monter a (xa, y(xa))
+            // 3. Suivre la courbe jusqu'a (xb, y(xb))
+            // 4. Descendre a (xb, 0)
+            // 5. Revenir a (xa, 0) pour fermer (ceci trace la ligne du bas)
+            var contour_x = [xa, xa].concat(xZ).concat([xb, xb, xa]);
+            var contour_y = [0, y_at_xa].concat(yZ).concat([y_at_xb, 0, 0]);
             
             extreme_traces.push({
                 x: contour_x,
@@ -3527,20 +3509,16 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         if (!isNaN(x_obs)) {
             if (side === 'right') {
-                // Zone a droite de x_obs : ouvert a gauche, ferme a droite
-                _add_extreme_zone(x_obs, x_max, true, false);
+                _add_extreme_zone(x_obs, x_max);
             }
             else if (side === 'left') {
-                // Zone a gauche de x_obs : ferme a gauche, ouvert a droite
-                _add_extreme_zone(x_min, x_obs, false, true);
+                _add_extreme_zone(x_min, x_obs);
             }
             else if (side === 'bilateral') {
                 if (!isNaN(x_sym)) {
-                    // Cote sym (gauche) : ferme a gauche, ouvert a droite
-                    _add_extreme_zone(x_min, x_sym, false, true);
+                    _add_extreme_zone(x_min, x_sym);
                 }
-                // Cote obs (droite) : ouvert a gauche, ferme a droite
-                _add_extreme_zone(x_obs, x_max, true, false);
+                _add_extreme_zone(x_obs, x_max);
             }
         }
 
