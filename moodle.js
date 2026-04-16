@@ -3258,10 +3258,10 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     };
     var _fmt = function(v) { return Math.round(v * 1000) / 1000; };
 
-    /* Pour les lois continues, x_obs et x_sym sont des valeurs calculées  */
-    /* (non rigoureusement exactes) → on utilise \approx.                  */
-    /* Pour les lois discrètes, x_obs est un entier exact → on garde =.    */
-    /* x_crit est toujours un quantile exact de la loi → on garde = partout.*/
+    /* Pour les lois continues, x_obs, x_sym et x_crit sont des réels      */
+    /* calculés numériquement → on utilise \approx.                         */
+    /* Pour les lois discrètes, toutes ces valeurs sont des entiers exacts  */
+    /* → on garde =.                                                         */
     var _latex_ann = function(subscript, val) {
         return '$' + _bare(x_title) + '_{\\text{' + subscript + '}} = ' + _fmt(val) + '$';
     };
@@ -3269,7 +3269,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         return '$' + _bare(x_title) + '_{\\text{' + subscript + '}} \\approx ' + _fmt(val) + '$';
     };
     var _ann_obs  = is_discrete ? _latex_ann : _latex_ann_approx;
-    var _ann_crit = _latex_ann;   /* quantile exact, toujours = */
+    var _ann_crit = is_discrete ? _latex_ann : _latex_ann_approx;
 
     /* ------------------------------------------------------------------ */
     /* Annotations : fleches verticales sur la courbe                      */
