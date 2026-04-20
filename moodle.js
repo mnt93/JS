@@ -3080,7 +3080,7 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 /*  plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title, options)
 /*
 /*  Equivalent de plot_distribution() mais utilisant Plotly au lieu de Google Charts.
-/*  Signature identique — aucune modification des appels existants necessaire.
+/*  Signature identique -- aucune modification des appels existants necessaire.
 /*
 /*  Dependances (a charger avant ce script) :
 /*    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js"></script>
@@ -3089,11 +3089,36 @@ function plot_distribution(div_id, law, params, x_obs, alpha, side, title, optio
 /*  @param div_id  {string}  ID du <div> cible
 /*  @param law     {string}  'normal' | 'student' | 'chisquare' | 'binomial' | 'poisson' | 'exponential' | 'uniform'
 /*  @param params  {Array}   Parametres de la loi (identiques a plot_distribution)
-/*  @param x_obs   {number}  Valeur observee
+/*  @param x_obs   {number}  Valeur observee (NaN ou null pour ne pas afficher)
 /*  @param alpha   {number}  Seuil (ex : 0.05)
 /*  @param side    {string}  'bilateral' | 'left' | 'right'
 /*  @param title   {string}  Titre du graphique (LaTeX $...$ accepte)
 /*  @param options {object}  Facultatif : width, height, x_title, y_title, n_points, x_min, x_max
+/*                           + options de controle visuel :
+/*
+/*    show_rejection_zones {boolean}  Afficher les zones de rejet rouge/bleu et valeurs critiques
+/*                                    defaut : true
+/*    show_extreme_border  {boolean}  Afficher la bordure orange sur les valeurs au moins aussi
+/*                                    extremes que x_obs, et la valeur symetrique x_sym
+/*                                    defaut : true
+/*    show_legend          {boolean}  Afficher la legende en bas du graphique
+/*                                    defaut : true
+/*    show_obs_annotation  {boolean}  Afficher l'annotation (fleche + etiquette) sur x_obs
+/*                                    defaut : true
+/*
+/*  Exemples d'utilisation :
+/*
+/*    // Affichage complet (comportement par defaut, 100% compatible avec les appels existants)
+/*    plot_distribution_plotly('div1', 'binomial', [50, 0.4], 25, 0.05, 'bilateral', 'Titre');
+/*
+/*    // Distribution + position de k_obs uniquement (sans zones, sans bordures)
+/*    plot_distribution_plotly('div1', 'binomial', [50, 0.4], 25, 0.05, 'bilateral', 'Titre',
+/*        { show_rejection_zones: false, show_extreme_border: false });
+/*
+/*    // Distribution seule, sans aucun element statistique
+/*    plot_distribution_plotly('div1', 'binomial', [50, 0.4], NaN, 0.05, 'bilateral', 'Titre',
+/*        { show_rejection_zones: false, show_extreme_border: false,
+/*          show_obs_annotation: false, show_legend: false });
 /*==============================================================================================================================*/
 
 /* Active MathJax comme moteur LaTeX pour Plotly (appel unique, idempotent) */
@@ -3110,6 +3135,15 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     var y_title  = opts.y_title  || 'f(x)';
     var n_points = opts.n_points || 300;
 
+    /* ------------------------------------------------------------------ */
+    /* Options de controle visuel                                           */
+    /* Par defaut : comportement original (tout affiche)                   */
+    /* ------------------------------------------------------------------ */
+    var show_rejection_zones = (opts.show_rejection_zones !== undefined) ? opts.show_rejection_zones : true;
+    var show_extreme_border  = (opts.show_extreme_border  !== undefined) ? opts.show_extreme_border  : true;
+    var show_legend          = (opts.show_legend          !== undefined) ? opts.show_legend          : true;
+    var show_obs_annotation  = (opts.show_obs_annotation  !== undefined) ? opts.show_obs_annotation  : true;
+
     /* helpers de comparaison sans operateurs < > (compatibilite STACK/Moodle) */
     var _lt  = function(a, b) { return Math.sign(a - b) === -1; };
     var _lte = function(a, b) { return Math.sign(a - b) !== 1; };
@@ -3117,7 +3151,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     var _gte = function(a, b) { return Math.sign(a - b) !== -1; };
 
     /* ------------------------------------------------------------------ */
-    /* Couleurs fixes (fond blanc, texte noir)                              */
+    /* Couleurs                                                             */
     /* ------------------------------------------------------------------ */
     var C_REJECT       = 'rgba(226,75,74,0.30)';
     var C_REJECT_SOLID = 'rgba(226,75,74,0.55)';
@@ -3125,6 +3159,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     var C_OBS          = '#EF9F27';
     var C_CRIT         = '#E24B4A';
     var C_CURVE        = '#378ADD';
+    var C_NEUTRAL_BAR  = 'rgba(55,138,221,0.55)';  /* couleur homogene quand zones desactivees */
     var C_REJECT_BAR   = 'rgba(226,75,74,0.70)';
     var C_NOREJECT_BAR = 'rgba(55,138,221,0.55)';
     var C_TEXT         = '#1a1a1a';
@@ -3168,41 +3203,44 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     /* ------------------------------------------------------------------ */
     /* Valeurs critiques                                                    */
+    /* Calculees uniquement si show_rejection_zones = true                  */
     /* ------------------------------------------------------------------ */
     var x_crit_lo = NaN;
     var x_crit_hi = NaN;
-    var a_side = (side === 'bilateral') ? alpha / 2 : alpha;
 
-    if (is_discrete) {
-        var n_max = (law === 'binomial') ? params[0] : Math.round(params[0] * 10);
-        if (side === 'bilateral' || side === 'left') {
-            var ki = 0;
-            while (_lt(ki, n_max) && _lte(cdf_fn(ki), a_side)) ki++;
-            x_crit_lo = ki - 1;
-        }
-        if (side === 'bilateral' || side === 'right') {
-            var ks = n_max;
-            while (_gt(ks, 0) && _lte(1 - cdf_fn(ks - 1), a_side)) ks--;
-            x_crit_hi = ks + 1;
-        }
-    } else {
-        if (side === 'bilateral') {
-            x_crit_lo = inv_fn(alpha / 2);
-            x_crit_hi = inv_fn(1 - alpha / 2);
-        } else if (side === 'left') {
-            x_crit_lo = inv_fn(alpha);
+    if (show_rejection_zones) {
+        var a_side = (side === 'bilateral') ? alpha / 2 : alpha;
+
+        if (is_discrete) {
+            var n_max = (law === 'binomial') ? params[0] : Math.round(params[0] * 10);
+            if (side === 'bilateral' || side === 'left') {
+                var ki = 0;
+                while (_lt(ki, n_max) && _lte(cdf_fn(ki), a_side)) ki++;
+                x_crit_lo = ki - 1;
+            }
+            if (side === 'bilateral' || side === 'right') {
+                var ks = n_max;
+                while (_gt(ks, 0) && _lte(1 - cdf_fn(ks - 1), a_side)) ks--;
+                x_crit_hi = ks + 1;
+            }
         } else {
-            x_crit_hi = inv_fn(1 - alpha);
+            if (side === 'bilateral') {
+                x_crit_lo = inv_fn(alpha / 2);
+                x_crit_hi = inv_fn(1 - alpha / 2);
+            } else if (side === 'left') {
+                x_crit_lo = inv_fn(alpha);
+            } else {
+                x_crit_hi = inv_fn(1 - alpha);
+            }
         }
     }
 
     /* ------------------------------------------------------------------ */
-    /* Valeur symetrique pour test bilateral                                */
-    /* x_sym : plus petite valeur telle que P(X=x_sym) <= P(X=x_obs)      */
-    /* du cote oppose a x_obs par rapport a la moyenne                     */
+    /* Valeur symetrique x_sym                                              */
+    /* Calculee uniquement si show_extreme_border = true                    */
     /* ------------------------------------------------------------------ */
     var x_sym = NaN;
-    if (side === 'bilateral' && !isNaN(x_obs)) {
+    if (show_extreme_border && side === 'bilateral' && !isNaN(x_obs)) {
         if (is_discrete) {
             var p_obs = pdf_fn(Math.round(x_obs));
             var mu_d  = (law === 'binomial') ? params[0] * params[1] : params[0];
@@ -3258,10 +3296,6 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     };
     var _fmt = function(v) { return Math.round(v * 1000) / 1000; };
 
-    /* Pour les lois continues, x_obs, x_sym et x_crit sont des réels      */
-    /* calculés numériquement → on utilise \approx.                         */
-    /* Pour les lois discrètes, toutes ces valeurs sont des entiers exacts  */
-    /* → on garde =.                                                         */
     var _latex_ann = function(subscript, val) {
         return '$' + _bare(x_title) + '_{\\text{' + subscript + '}} = ' + _fmt(val) + '$';
     };
@@ -3272,8 +3306,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     var _ann_crit = is_discrete ? _latex_ann : _latex_ann_approx;
 
     /* ------------------------------------------------------------------ */
-    /* Annotations : fleches verticales sur la courbe                      */
-    /* obs et sym : orange, crit : rouge                                   */
+    /* Annotations                                                          */
     /* ------------------------------------------------------------------ */
     var annotations = [];
 
@@ -3291,57 +3324,71 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         };
     };
 
-    if (!isNaN(x_obs)) {
+    /* Annotation x_obs */
+    if (show_obs_annotation && !isNaN(x_obs)) {
         var y_obs = pdf_fn(x_obs);
         if (!isFinite(y_obs) || isNaN(y_obs)) y_obs = 0;
         annotations.push(_make_ann(x_obs, y_obs, _ann_obs('obs', x_obs), C_OBS));
     }
-    if (!isNaN(x_sym)) {
+
+    /* Annotation x_sym : seulement si bordure extreme active */
+    if (show_extreme_border && !isNaN(x_sym)) {
         var y_sym = pdf_fn(x_sym);
         if (!isFinite(y_sym) || isNaN(y_sym)) y_sym = 0;
         annotations.push(_make_ann(x_sym, y_sym, _ann_obs('sym', x_sym), C_OBS));
     }
-    if (!isNaN(x_crit_lo)) {
-        var y_clo = pdf_fn(x_crit_lo);
-        if (!isFinite(y_clo) || isNaN(y_clo)) y_clo = 0;
-        annotations.push(_make_ann(x_crit_lo, y_clo, _ann_crit('crit', x_crit_lo), C_CRIT));
-    }
-    if (!isNaN(x_crit_hi)) {
-        var y_chi2 = pdf_fn(x_crit_hi);
-        if (!isFinite(y_chi2) || isNaN(y_chi2)) y_chi2 = 0;
-        annotations.push(_make_ann(x_crit_hi, y_chi2, _ann_crit('crit', x_crit_hi), C_CRIT));
-    }
 
-    /* ------------------------------------------------------------------ */
-    /* Legendes                                                           */
-    /* ------------------------------------------------------------------ */
-    var legend_traces = [
-        {
-            x: [null], y: [null], type: 'scatter', mode: 'markers',
-            marker: { color: C_REJECT_SOLID, size: 14, symbol: 'square' },
-            name: 'Zone de rejet de H₀',
-            showlegend: true, hoverinfo: 'skip'
-        },
-        {
-            x: [null], y: [null], type: 'scatter', mode: 'markers',
-            marker: { color: C_NOREJECT, size: 14, symbol: 'square' },
-            name: 'Zone de non-rejet de H₀',
-            showlegend: true, hoverinfo: 'skip'
-        },
-        {
-            x: [null], y: [null], type: 'scatter', mode: 'markers',
-            marker: {
-                color: 'rgba(0,0,0,0)', size: 14, symbol: 'square',
-                line: { color: C_OBS, width: 2 }
-            },
-            name: 'Zone au moins aussi extrême que la valeur observée',
-            showlegend: true, hoverinfo: 'skip'
+    /* Annotations valeurs critiques : seulement si zones de rejet actives */
+    if (show_rejection_zones) {
+        if (!isNaN(x_crit_lo)) {
+            var y_clo = pdf_fn(x_crit_lo);
+            if (!isFinite(y_clo) || isNaN(y_clo)) y_clo = 0;
+            annotations.push(_make_ann(x_crit_lo, y_clo, _ann_crit('crit', x_crit_lo), C_CRIT));
         }
-    ];
+        if (!isNaN(x_crit_hi)) {
+            var y_chi2 = pdf_fn(x_crit_hi);
+            if (!isFinite(y_chi2) || isNaN(y_chi2)) y_chi2 = 0;
+            annotations.push(_make_ann(x_crit_hi, y_chi2, _ann_crit('crit', x_crit_hi), C_CRIT));
+        }
+    }
 
     /* ------------------------------------------------------------------ */
-    /* Layout commun                                                        */
+    /* Legendes                                                             */
+    /* Seules les entrees pertinentes selon les options actives             */
     /* ------------------------------------------------------------------ */
+    var legend_traces = [];
+    if (show_legend) {
+        if (show_rejection_zones) {
+            legend_traces.push({
+                x: [null], y: [null], type: 'scatter', mode: 'markers',
+                marker: { color: C_REJECT_SOLID, size: 14, symbol: 'square' },
+                name: 'Zone de rejet de H\u2080',
+                showlegend: true, hoverinfo: 'skip'
+            });
+            legend_traces.push({
+                x: [null], y: [null], type: 'scatter', mode: 'markers',
+                marker: { color: C_NOREJECT, size: 14, symbol: 'square' },
+                name: 'Zone de non-rejet de H\u2080',
+                showlegend: true, hoverinfo: 'skip'
+            });
+        }
+        if (show_extreme_border && !isNaN(x_obs)) {
+            legend_traces.push({
+                x: [null], y: [null], type: 'scatter', mode: 'markers',
+                marker: {
+                    color: 'rgba(0,0,0,0)', size: 14, symbol: 'square',
+                    line: { color: C_OBS, width: 2 }
+                },
+                name: 'Zone au moins aussi extr\u00eame que la valeur observ\u00e9e',
+                showlegend: true, hoverinfo: 'skip'
+            });
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Layout                                                               */
+    /* ------------------------------------------------------------------ */
+    var has_legend = show_legend && legend_traces.length > 0;
     var layout = {
         title: { text: title, font: { size: 14, color: C_TEXT } },
         xaxis: {
@@ -3356,28 +3403,33 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
         plot_bgcolor:  '#ffffff',
         font: { family: 'Arial,sans-serif', color: C_TEXT },
         annotations: annotations,
-        showlegend: true,
+        showlegend: has_legend,
         legend: {
             orientation: 'h', x: 0, y: -0.22,
             font: { size: 11, color: C_TEXT },
             bgcolor: 'rgba(255,255,255,0)',
             borderwidth: 0
         },
-        margin: { l: 60, r: 30, t: 80, b: 100 }
+        /* Marge inferieure reduite si pas de legende */
+        margin: { l: 60, r: 30, t: 80, b: has_legend ? 100 : 60 }
     };
 
-    var plotly_opts = { responsive: true, displayModeBar: false, mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js' };
+    var plotly_opts = {
+        responsive: true,
+        displayModeBar: false,
+        mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js'
+    };
 
-    /* ------------------------------------------------------------------ */
-    /* LOI DISCRETE                                                       */
-    /* ------------------------------------------------------------------ */
+    /* ================================================================== */
+    /* LOI DISCRETE                                                        */
+    /* ================================================================== */
     if (is_discrete) {
 
-        var p_obs_d = (!isNaN(x_obs)) ? pdf_fn(Math.round(x_obs)) : -1;
+        var p_obs_d = (show_extreme_border && !isNaN(x_obs)) ? pdf_fn(Math.round(x_obs)) : -1;
 
-        var ks_arr     = [];
-        var pmf_arr    = [];
-        var col_arr    = [];
+        var ks_arr       = [];
+        var pmf_arr      = [];
+        var col_arr      = [];
         var border_arr   = [];
         var border_w_arr = [];
 
@@ -3387,31 +3439,32 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             var pmf_k = pdf_fn(k_iter);
             pmf_arr.push(pmf_k);
 
-            var is_rej  = (!isNaN(x_crit_lo) && _lte(k_iter, x_crit_lo))
-                       || (!isNaN(x_crit_hi) && _gte(k_iter, x_crit_hi));
-            
-            if (is_rej) {
-                col_arr.push(C_REJECT_BAR);
+            /* ---- Couleur de la barre ---- */
+            if (show_rejection_zones) {
+                /* Rouge/bleu selon zone de rejet */
+                var is_rej = (!isNaN(x_crit_lo) && _lte(k_iter, x_crit_lo))
+                          || (!isNaN(x_crit_hi) && _gte(k_iter, x_crit_hi));
+                col_arr.push(is_rej ? C_REJECT_BAR : C_NOREJECT_BAR);
             } else {
-                col_arr.push(C_NOREJECT_BAR);
+                /* Couleur homogene : toutes les barres ont la meme teinte bleue */
+                col_arr.push(C_NEUTRAL_BAR);
             }
-            
-            var k_r = Math.round(x_obs);
-            var k_s = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
-            var on_obs_side = _gte(k_iter, k_r);
-            var on_sym_side = !isNaN(k_s) && _lte(k_iter, k_s);
-            var is_extreme = (!isNaN(x_obs)
-                              && _lte(pmf_k, p_obs_d)
-                              && (on_obs_side || on_sym_side));
-            
-            if (is_extreme) {
-                border_arr.push(C_OBS);
-                border_w_arr.push(2);
+
+            /* ---- Bordure zone extreme ---- */
+            if (show_extreme_border && !isNaN(x_obs)) {
+                var k_r        = Math.round(x_obs);
+                var k_s        = !isNaN(x_sym) ? Math.round(x_sym) : NaN;
+                var on_obs_s   = _gte(k_iter, k_r);
+                var on_sym_s   = !isNaN(k_s) && _lte(k_iter, k_s);
+                var is_extreme = _lte(pmf_k, p_obs_d) && (on_obs_s || on_sym_s);
+                border_arr.push(is_extreme ? C_OBS : 'rgba(0,0,0,0)');
+                border_w_arr.push(is_extreme ? 2 : 0);
             } else {
+                /* Pas de bordure */
                 border_arr.push('rgba(0,0,0,0)');
                 border_w_arr.push(0);
             }
-            
+
             k_iter++;
         }
 
@@ -3429,9 +3482,9 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         Plotly.newPlot(div_id, [trace_d].concat(legend_traces), layout, plotly_opts);
 
-    /* ------------------------------------------------------------------ */
-    /* LOI CONTINUE                                                       */
-    /* ------------------------------------------------------------------ */
+    /* ================================================================== */
+    /* LOI CONTINUE                                                        */
+    /* ================================================================== */
     } else {
 
         var step = (x_max - x_min) / n_points;
@@ -3442,15 +3495,18 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             xs.push(x_min + ii * step);
             ii++;
         }
-        if (!isNaN(x_crit_lo)) {
-            xs.push(x_crit_lo - 1e-9);
-            xs.push(x_crit_lo);
-            xs.push(x_crit_lo + 1e-9);
-        }
-        if (!isNaN(x_crit_hi)) {
-            xs.push(x_crit_hi - 1e-9);
-            xs.push(x_crit_hi);
-            xs.push(x_crit_hi + 1e-9);
+        /* Points de precision aux valeurs critiques (seulement si zones actives) */
+        if (show_rejection_zones) {
+            if (!isNaN(x_crit_lo)) {
+                xs.push(x_crit_lo - 1e-9);
+                xs.push(x_crit_lo);
+                xs.push(x_crit_lo + 1e-9);
+            }
+            if (!isNaN(x_crit_hi)) {
+                xs.push(x_crit_hi - 1e-9);
+                xs.push(x_crit_hi);
+                xs.push(x_crit_hi + 1e-9);
+            }
         }
         xs.sort(function(a, b) { return a - b; });
 
@@ -3468,127 +3524,66 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
         var bare_xt2 = _bare(x_title);
         var bare_yt2 = _bare(y_title);
+        var traces;
 
-        var extreme_traces = [];
+        if (show_rejection_zones) {
+            /* Remplissage bleu (non-rejet) sur toute la courbe */
+            traces = [{
+                x: xs, y: ys,
+                type: 'scatter', mode: 'lines', fill: 'tozeroy',
+                fillcolor: C_NOREJECT,
+                line: { color: 'rgba(0,0,0,0)', width: 0 },
+                hovertemplate: bare_xt2 + ' = %{x:.4f}<br>' + bare_yt2 + ' = %{y:.5f}<extra></extra>',
+                name: '', showlegend: false
+            }];
 
-        var _add_extreme_zone = function(xa, xb, open_start, open_end) {
-            var xZ = [], yZ = [];
-            var hz = 0;
-            while (_lt(hz, xs.length)) {
-                if (_gte(xs[hz], xa) && _lte(xs[hz], xb)) {
-                    xZ.push(xs[hz]); 
-                    yZ.push(ys[hz]);
+            /* Zone de rejet gauche */
+            if (!isNaN(x_crit_lo)) {
+                var xRL = [], yRL = [];
+                var rr = 0;
+                while (_lt(rr, xs.length)) {
+                    if (_lte(xs[rr], x_crit_lo)) { xRL.push(xs[rr]); yRL.push(ys[rr]); }
+                    rr++;
                 }
-                hz++;
-            }
-            if (!xZ.length) return;
-            
-            var contour_x, contour_y;
-            var y_at_xa = 0;
-            var y_at_xb = 0;
-            
-            for (var idx = 0; idx < xs.length; idx++) {
-                if (Math.abs(xs[idx] - xa) < 1e-9) y_at_xa = ys[idx];
-                if (Math.abs(xs[idx] - xb) < 1e-9) y_at_xb = ys[idx];
-            }
-            
-            if (open_start && open_end) {
-                contour_x = xZ;
-                contour_y = yZ;
-            } 
-            else if (open_start && !open_end) {
-                contour_x = xZ.concat([xb, xa]);
-                contour_y = yZ.concat([0, 0]);
-            }
-            else if (!open_start && open_end) {
-                contour_x = [xa, xb].concat(xZ);
-                contour_y = [0, 0].concat(yZ);
-            }
-            else {
-                contour_x = [xa].concat(xZ).concat([xb, xa]);
-                contour_y = [0].concat(yZ).concat([0, 0]);
-            }
-            
-            extreme_traces.push({
-                x: contour_x,
-                y: contour_y,
-                type: 'scatter', mode: 'lines',
-                fill: 'none',
-                line: { color: C_OBS, width: 2 },
-                name: '', hoverinfo: 'skip', showlegend: false
-            });
-        };
-
-        if (!isNaN(x_obs)) {
-            if (side === 'right') {
-                _add_extreme_zone(x_obs, x_max, true, false);
-            }
-            else if (side === 'left') {
-                _add_extreme_zone(x_min, x_obs, false, true);
-            }
-            else if (side === 'bilateral') {
-                if (!isNaN(x_sym)) {
-                    if (_lt(x_obs, x_sym)) {
-                        // Cas: x_obs < x_sym (valeur observee a gauche)
-                        // Zone extreme: a gauche de x_obs ET a droite de x_sym
-                        _add_extreme_zone(x_min, x_obs, false, true);
-                        _add_extreme_zone(x_sym, x_max, true, false);
-                    } else {
-                        // Cas: x_obs > x_sym (valeur observee a droite)
-                        // Zone extreme: a gauche de x_sym ET a droite de x_obs
-                        _add_extreme_zone(x_min, x_sym, false, true);
-                        _add_extreme_zone(x_obs, x_max, true, false);
-                    }
+                if (xRL.length) {
+                    traces.push({
+                        x: [xRL[0]].concat(xRL).concat([xRL[xRL.length - 1]]),
+                        y: [0].concat(yRL).concat([0]),
+                        type: 'scatter', mode: 'lines', fill: 'tozeroy',
+                        fillcolor: C_REJECT, line: { color: C_CRIT, width: 0 },
+                        name: '', hoverinfo: 'skip', showlegend: false
+                    });
                 }
             }
-        }
 
-        /* Remplissage bleu */
-        var traces = [{
-            x: xs, y: ys,
-            type: 'scatter', mode: 'lines', fill: 'tozeroy',
-            fillcolor: C_NOREJECT,
-            line: { color: 'rgba(0,0,0,0)', width: 0 },
-            hovertemplate: bare_xt2 + ' = %{x:.4f}<br>' + bare_yt2 + ' = %{y:.5f}<extra></extra>',
-            name: '', showlegend: false
-        }];
-
-        /* Zone de rejet gauche */
-        if (!isNaN(x_crit_lo)) {
-            var xRL = [], yRL = [];
-            var rr = 0;
-            while (_lt(rr, xs.length)) {
-                if (_lte(xs[rr], x_crit_lo)) { xRL.push(xs[rr]); yRL.push(ys[rr]); }
-                rr++;
+            /* Zone de rejet droite */
+            if (!isNaN(x_crit_hi)) {
+                var xRR = [], yRR = [];
+                var ss = 0;
+                while (_lt(ss, xs.length)) {
+                    if (_gte(xs[ss], x_crit_hi)) { xRR.push(xs[ss]); yRR.push(ys[ss]); }
+                    ss++;
+                }
+                if (xRR.length) {
+                    traces.push({
+                        x: [xRR[0]].concat(xRR).concat([xRR[xRR.length - 1]]),
+                        y: [0].concat(yRR).concat([0]),
+                        type: 'scatter', mode: 'lines', fill: 'tozeroy',
+                        fillcolor: C_REJECT, line: { color: C_CRIT, width: 0 },
+                        name: '', hoverinfo: 'skip', showlegend: false
+                    });
+                }
             }
-            if (xRL.length) {
-                traces.push({
-                    x: [xRL[0]].concat(xRL).concat([xRL[xRL.length - 1]]),
-                    y: [0].concat(yRL).concat([0]),
-                    type: 'scatter', mode: 'lines', fill: 'tozeroy',
-                    fillcolor: C_REJECT, line: { color: C_CRIT, width: 0 },
-                    name: '', hoverinfo: 'skip', showlegend: false
-                });
-            }
-        }
-
-        /* Zone de rejet droite */
-        if (!isNaN(x_crit_hi)) {
-            var xRR = [], yRR = [];
-            var ss = 0;
-            while (_lt(ss, xs.length)) {
-                if (_gte(xs[ss], x_crit_hi)) { xRR.push(xs[ss]); yRR.push(ys[ss]); }
-                ss++;
-            }
-            if (xRR.length) {
-                traces.push({
-                    x: [xRR[0]].concat(xRR).concat([xRR[xRR.length - 1]]),
-                    y: [0].concat(yRR).concat([0]),
-                    type: 'scatter', mode: 'lines', fill: 'tozeroy',
-                    fillcolor: C_REJECT, line: { color: C_CRIT, width: 0 },
-                    name: '', hoverinfo: 'skip', showlegend: false
-                });
-            }
+        } else {
+            /* Remplissage homogene (une seule couleur, pas de decoupage) */
+            traces = [{
+                x: xs, y: ys,
+                type: 'scatter', mode: 'lines', fill: 'tozeroy',
+                fillcolor: C_NOREJECT,
+                line: { color: 'rgba(0,0,0,0)', width: 0 },
+                hovertemplate: bare_xt2 + ' = %{x:.4f}<br>' + bare_yt2 + ' = %{y:.5f}<extra></extra>',
+                name: '', showlegend: false
+            }];
         }
 
         /* Courbe principale */
@@ -3599,7 +3594,7 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             hoverinfo: 'skip', name: '', showlegend: false
         });
 
-        /* Lignes verticales x_obs et x_sym (pointillees) */
+        /* Ligne verticale pointillee x_obs */
         if (!isNaN(x_obs)) {
             var y_obs_top = pdf_fn(x_obs);
             if (!isFinite(y_obs_top) || y_obs_top === 0) y_obs_top = y_max_c * 0.9;
@@ -3611,7 +3606,8 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             });
         }
 
-        if (!isNaN(x_sym)) {
+        /* Ligne verticale pointillee x_sym (seulement si bordure extreme active) */
+        if (show_extreme_border && !isNaN(x_sym)) {
             var y_sym_top = pdf_fn(x_sym);
             if (!isFinite(y_sym_top) || y_sym_top === 0) y_sym_top = y_max_c * 0.9;
             traces.push({
@@ -3622,7 +3618,64 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
             });
         }
 
-        traces = traces.concat(extreme_traces);
+        /* Contour zone extreme (seulement si show_extreme_border = true) */
+        if (show_extreme_border && !isNaN(x_obs)) {
+
+            var extreme_traces = [];
+
+            var _add_extreme_zone = function(xa, xb, open_start, open_end) {
+                var xZ = [], yZ = [];
+                var hz = 0;
+                while (_lt(hz, xs.length)) {
+                    if (_gte(xs[hz], xa) && _lte(xs[hz], xb)) {
+                        xZ.push(xs[hz]);
+                        yZ.push(ys[hz]);
+                    }
+                    hz++;
+                }
+                if (!xZ.length) return;
+
+                var contour_x, contour_y;
+                if (open_start && open_end) {
+                    contour_x = xZ;
+                    contour_y = yZ;
+                } else if (open_start && !open_end) {
+                    contour_x = xZ.concat([xb, xa]);
+                    contour_y = yZ.concat([0, 0]);
+                } else if (!open_start && open_end) {
+                    contour_x = [xa, xb].concat(xZ);
+                    contour_y = [0, 0].concat(yZ);
+                } else {
+                    contour_x = [xa].concat(xZ).concat([xb, xa]);
+                    contour_y = [0].concat(yZ).concat([0, 0]);
+                }
+
+                extreme_traces.push({
+                    x: contour_x, y: contour_y,
+                    type: 'scatter', mode: 'lines',
+                    fill: 'none',
+                    line: { color: C_OBS, width: 2 },
+                    name: '', hoverinfo: 'skip', showlegend: false
+                });
+            };
+
+            if (side === 'right') {
+                _add_extreme_zone(x_obs, x_max, true, false);
+            } else if (side === 'left') {
+                _add_extreme_zone(x_min, x_obs, false, true);
+            } else if (side === 'bilateral' && !isNaN(x_sym)) {
+                if (_lt(x_obs, x_sym)) {
+                    _add_extreme_zone(x_min, x_obs, false, true);
+                    _add_extreme_zone(x_sym, x_max, true, false);
+                } else {
+                    _add_extreme_zone(x_min, x_sym, false, true);
+                    _add_extreme_zone(x_obs, x_max, true, false);
+                }
+            }
+
+            traces = traces.concat(extreme_traces);
+        }
+
         Plotly.newPlot(div_id, traces.concat(legend_traces), layout, plotly_opts);
     }
 }
