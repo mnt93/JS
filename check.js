@@ -1,3 +1,17 @@
+/*===============================================================================================================
+ * check.js — Point d'entrée unique pour les exercices Moodle
+ *
+ * Ce fichier est chargé via XHR synchrone + eval() dans chaque question.
+ * Il fournit :
+ *   1. Les fonctions utilitaires : check_course_id(), find_course_id(), find_attempt_id()
+ *   2. Le chargement IMMÉDIAT et INCONDITIONNEL de Plotly et jStat
+ *      (indépendant de l'autorisation du cours)
+ *   3. La fonction moodle_init() qui charge moodle.js et exécute les callbacks
+ *      une fois toutes les dépendances prêtes
+ *===============================================================================================================*/
+
+
+/*=============================================================================================================== */
 function check_course_id(id) {
     var d = new Date();
     var cacheBuster = d.getTime();
@@ -31,11 +45,11 @@ function check_course_id(id) {
 /*=============================================================================================================== */
 
 function find_course_id() {
-    let element = document.querySelector('[class^="format-topics"]')
-    var i0 = element.className.indexOf("course-")
-    var i1 = element.className.indexOf("context-")
+    let element = document.querySelector('[class^="format-topics"]');
+    var i0 = element.className.indexOf("course-");
+    var i1 = element.className.indexOf("context-");
     var course_id = element.className.substring(i0 + 7, i1 - 1);
-    return course_id
+    return course_id;
 }
 /*=============================================================================================================== */
 
@@ -43,13 +57,13 @@ function find_attempt_id() {
     const htmlContent = document.documentElement.outerHTML;
     const startIndex = htmlContent.indexOf("attempt=");
     if (startIndex === -1) {
-        console.log("La chaîne 'attempt=' n'a pas été trouvée dans le code source.");
+        console.log("La chaine 'attempt=' n'a pas ete trouvee dans le code source.");
         return null;
     }
     const start = startIndex + "attempt=".length;
     const endIndex = htmlContent.indexOf("&amp;cmid=", start);
     if (endIndex === -1) {
-        console.log("La chaîne '&amp;cmid=' n'a pas été trouvée dans le code source.");
+        console.log("La chaine '&amp;cmid=' n'a pas ete trouvee dans le code source.");
         return null;
     }
     return htmlContent.substring(start, endIndex);
@@ -57,86 +71,101 @@ function find_attempt_id() {
 /*=============================================================================================================== */
 
 /*
- * Système de callbacks _onMoodleReady
+ * Chargement IMMEDIAT et INCONDITIONNEL de Plotly et jStat
+ * ---------------------------------------------------------
+ * Ces bibliotheques sont chargees des l'execution de check.js,
+ * independamment de l'autorisation du cours.
+ *
+ * Les Promises resultantes sont stockees sur window (_loadPlotly, _loadJstat)
+ * pour que moodle_init() puisse les attendre sans les relancer.
+ *
+ * Plotly : chargement via <script src> — aucun conflit AMD avec RequireJS.
+ *
+ * jStat  : chargement via fetch + eval avec neutralisation temporaire de define().
+ *          jStat est package comme module AMD : un <script src> declencherait
+ *          "Mismatched anonymous define()" dans RequireJS de Moodle.
+ *          On masque window.define le temps de l'eval puis on le restaure.
+ */
+
+window._loadPlotly = (typeof window.Plotly !== 'undefined')
+    ? Promise.resolve()
+    : new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js';
+        s.onload  = function() { console.log("Plotly charge."); resolve(); };
+        s.onerror = function() { reject(new Error('Echec chargement Plotly')); };
+        document.head.appendChild(s);
+    });
+
+window._loadJstat = (typeof window.jStat !== 'undefined')
+    ? Promise.resolve()
+    : fetch('https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js')
+        .then(function(r) {
+            if (!r.ok) throw new Error('Echec chargement jStat');
+            return r.text();
+        })
+        .then(function(jstatCode) {
+            var _define = window.define;
+            window.define = undefined;
+            try   { eval(jstatCode); }
+            finally { window.define = _define; }
+            console.log("jStat charge.");
+        });
+
+console.log("check.js : chargement de Plotly et jStat lance.");
+
+/*=============================================================================================================== */
+
+/*
+ * Systeme de callbacks _onMoodleReady
  * ------------------------------------
- * Les questions enregistrent leurs fonctions de dessin via :
+ * Les questions enregistrent leurs fonctions graphiques avant d'appeler
+ * moodle_init() :
  *
  *   window._onMoodleReady = window._onMoodleReady || [];
- *   window._onMoodleReady.push(function() { ... });
+ *   window._onMoodleReady.push(function() { plot_distribution_plotly(...); });
+ *   moodle_init('loading-mask', 'exercise-content');
  *
- * check.js se charge de récupérer moodle.js, de l'évaluer, puis
- * d'exécuter tous les callbacks enregistrés — garantissant que
- * plot_distribution_plotly (et jStat) sont disponibles au moment de l'appel.
- *
- * Le HTML de la question n'a plus besoin de gérer fetch/eval manuellement.
- * Il lui suffit d'appeler moodle_init(mask_id, content_id) pour déclencher
- * le chargement et l'affichage.
+ * moodle_init() attend que moodle.js, Plotly ET jStat soient tous disponibles
+ * avant d'executer ces callbacks.
  */
 
 /**
  * moodle_init(mask_id, content_id)
  *
- * À appeler dans le <script> de chaque question après avoir enregistré
- * les callbacks dans window._onMoodleReady.
+ * Charge moodle.js (si le cours est autorise) puis execute tous les callbacks
+ * enregistres dans window._onMoodleReady une fois toutes les dependances pretes.
  *
  * @param {string} mask_id    ID du div "loading-mask"
  * @param {string} content_id ID du div "exercise-content"
  */
 function moodle_init(mask_id, content_id) {
     try {
-        var courseId   = find_course_id();
-        var moodleUrl  = check_course_id(courseId);
-        var mask       = document.getElementById(mask_id);
-        var content    = document.getElementById(content_id);
+        var courseId  = find_course_id();
+        var moodleUrl = check_course_id(courseId);
+        var mask      = document.getElementById(mask_id);
+        var content   = document.getElementById(content_id);
 
-        console.log("moodle_init : URL de moodle.js =", moodleUrl !== "" ? moodleUrl : "(cours non autorisé — moodle.js non chargé)");
+        console.log("moodle_init : URL de moodle.js =",
+            moodleUrl !== "" ? moodleUrl : "(cours non autorise)");
 
         if (moodleUrl !== "") {
 
-            // -- Chargement dynamique d'un script externe via Promise --
-            // Crée une balise <script src="url"> et résout la Promise quand
-            // le script est chargé (onload) ou rejette en cas d'erreur (onerror).
-            // Vérifie d'abord si la bibliothèque est déjà disponible sur window
-            // pour éviter un double chargement inutile.
-            var loadScript = function(url, alreadyLoaded) {
-                return new Promise(function(resolve, reject) {
-                    if (alreadyLoaded) { resolve(); return; }
-                    var s = document.createElement('script');
-                    s.src = url;
-                    s.onload  = function() { resolve(); };
-                    s.onerror = function() { reject(new Error('Échec chargement : ' + url)); };
-                    document.head.appendChild(s);
-                });
-            };
-
-            // -- Fetch de moodle.js --
+            // Fetch de moodle.js — lance en parallele avec Plotly/jStat deja en cours
             var fetchMoodle = fetch(moodleUrl)
                 .then(function(response) {
-                    if (!response.ok) throw new Error('Erreur de téléchargement de moodle.js');
+                    if (!response.ok) throw new Error('Erreur telechargement moodle.js');
                     return response.text();
                 });
 
-            // -- Chargement de Plotly et jStat en parallèle avec moodle.js --
-            // Ces deux bibliothèques sont nécessaires à plot_distribution_plotly.
-            // On les charge via <script> (pas via eval) pour qu'elles s'installent
-            // proprement sur window, sans conflit AMD avec RequireJS de Moodle.
-            var loadPlotly = loadScript(
-                'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js',
-                typeof window.Plotly !== 'undefined'
-            );
-            var loadJstat = loadScript(
-                'https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js',
-                typeof window.jStat !== 'undefined'
-            );
-
-            // -- Attendre que les trois ressources soient prêtes --
-            Promise.all([fetchMoodle, loadPlotly, loadJstat])
+            // Attendre les trois ressources simultanement
+            Promise.all([fetchMoodle, window._loadPlotly, window._loadJstat])
                 .then(function(results) {
                     var code = results[0]; // texte de moodle.js
 
-                    // Problème de portée : moodle_init() est elle-même définie dans un eval()
-                    // (check.js est chargé via eval). Un eval() imbriqué crée les fonctions
-                    // en portée LOCALE de moodle_init, invisibles depuis window.
+                    // Probleme de portee : moodle_init() est definie dans un eval()
+                    // (check.js est charge via eval). Un eval() imbrique cree les
+                    // fonctions en portee LOCALE, invisibles depuis window.
                     // Solution : envelopper le code dans une IIFE(window) et exposer
                     // explicitement chaque fonction publique sur window.
                     var wrappedCode = '(function(global){\n' + code + '\n'
@@ -151,19 +180,20 @@ function moodle_init(mask_id, content_id) {
                         + '  catch(e){}}'
                         + '\n})(window);';
                     eval(wrappedCode);
-                    console.log("moodle.js, Plotly et jStat chargés et prêts.");
+                    console.log("moodle.js evalue — toutes les dependances pretes.");
 
-                    // Afficher le contenu
+                    // Afficher le contenu de la question
                     if (mask)    mask.style.display    = 'none';
                     if (content) content.style.display = 'block';
 
-                    // Exécuter tous les callbacks enregistrés par la question
+                    // Executer tous les callbacks enregistres par la question
                     var callbacks = window._onMoodleReady || [];
                     for (var i = 0; i < callbacks.length; i++) {
                         try { callbacks[i](); }
-                        catch(e) { console.error("Erreur dans _onMoodleReady[" + i + "] :", e); }
+                        catch(e) {
+                            console.error("Erreur dans _onMoodleReady[" + i + "] :", e);
+                        }
                     }
-                    // Vider la file après exécution
                     window._onMoodleReady = [];
                 })
                 .catch(function(err) {
@@ -171,14 +201,16 @@ function moodle_init(mask_id, content_id) {
                     if (mask)    mask.style.display    = 'none';
                     if (content) content.style.display = 'block';
                 });
+
         } else {
-            // Cours non autorisé
+            // Cours non autorise
             if (mask) mask.style.display = 'none';
             var denied = document.getElementById('access-denied');
             if (denied) denied.style.display = 'block';
             var btn = document.querySelector('input[type="submit"]');
             if (btn) btn.disabled = true;
         }
+
     } catch(e) {
         console.error("Erreur d'initialisation moodle_init :", e);
     }
