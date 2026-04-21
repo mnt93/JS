@@ -89,6 +89,8 @@ function moodle_init(mask_id, content_id) {
         var mask       = document.getElementById(mask_id);
         var content    = document.getElementById(content_id);
 
+        console.log("moodle_init : URL de moodle.js =", moodleUrl !== "" ? moodleUrl : "(cours non autorisé — moodle.js non chargé)");
+
         if (moodleUrl !== "") {
             fetch(moodleUrl)
                 .then(function(response) {
