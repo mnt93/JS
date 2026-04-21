@@ -98,8 +98,23 @@ function moodle_init(mask_id, content_id) {
                     return response.text();
                 })
                 .then(function(code) {
-                    // moodle.js est évalué : plot_distribution_plotly et jStat sont disponibles
-                    eval(code);
+                    // Problème de portée : moodle_init() est elle-même définie dans un eval()
+                    // (check.js est chargé via eval). Un eval() imbriqué crée les fonctions
+                    // en portée LOCALE de moodle_init, invisibles depuis window.
+                    // Solution : on enveloppe le code de moodle.js dans une IIFE qui reçoit
+                    // window en argument et expose explicitement chaque fonction sur window.
+                    var wrappedCode = '(function(global){\n' + code + '\n'
+                        + 'var _fns=["plot_distribution_plotly","plot_distribution",'
+                        + '"plot_distribution_plotly","plot_binom_pmf","plot_normal_01",'
+                        + '"plot_line_area","plot_bar_chart","plot_line_area_bilateral",'
+                        + '"data_from_function","bin_cdf","tcdf","getArray","reponses",'
+                        + '"reponses_proposees","intervalles_proposees","moodle_init"];\n'
+                        + 'for(var _i=0;_i<_fns.length;_i++){'
+                        + '  try{if(typeof eval(_fns[_i])!=="undefined")'
+                        + '    global[_fns[_i]]=eval(_fns[_i]);}'
+                        + '  catch(e){}}'
+                        + '\n})(window);';
+                    eval(wrappedCode);
                     console.log("moodle.js chargé et exécuté.");
 
                     // Afficher le contenu
