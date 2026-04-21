@@ -92,30 +92,66 @@ function moodle_init(mask_id, content_id) {
         console.log("moodle_init : URL de moodle.js =", moodleUrl !== "" ? moodleUrl : "(cours non autorisé — moodle.js non chargé)");
 
         if (moodleUrl !== "") {
-            fetch(moodleUrl)
+
+            // -- Chargement dynamique d'un script externe via Promise --
+            // Crée une balise <script src="url"> et résout la Promise quand
+            // le script est chargé (onload) ou rejette en cas d'erreur (onerror).
+            // Vérifie d'abord si la bibliothèque est déjà disponible sur window
+            // pour éviter un double chargement inutile.
+            var loadScript = function(url, alreadyLoaded) {
+                return new Promise(function(resolve, reject) {
+                    if (alreadyLoaded) { resolve(); return; }
+                    var s = document.createElement('script');
+                    s.src = url;
+                    s.onload  = function() { resolve(); };
+                    s.onerror = function() { reject(new Error('Échec chargement : ' + url)); };
+                    document.head.appendChild(s);
+                });
+            };
+
+            // -- Fetch de moodle.js --
+            var fetchMoodle = fetch(moodleUrl)
                 .then(function(response) {
                     if (!response.ok) throw new Error('Erreur de téléchargement de moodle.js');
                     return response.text();
-                })
-                .then(function(code) {
+                });
+
+            // -- Chargement de Plotly et jStat en parallèle avec moodle.js --
+            // Ces deux bibliothèques sont nécessaires à plot_distribution_plotly.
+            // On les charge via <script> (pas via eval) pour qu'elles s'installent
+            // proprement sur window, sans conflit AMD avec RequireJS de Moodle.
+            var loadPlotly = loadScript(
+                'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js',
+                typeof window.Plotly !== 'undefined'
+            );
+            var loadJstat = loadScript(
+                'https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js',
+                typeof window.jStat !== 'undefined'
+            );
+
+            // -- Attendre que les trois ressources soient prêtes --
+            Promise.all([fetchMoodle, loadPlotly, loadJstat])
+                .then(function(results) {
+                    var code = results[0]; // texte de moodle.js
+
                     // Problème de portée : moodle_init() est elle-même définie dans un eval()
                     // (check.js est chargé via eval). Un eval() imbriqué crée les fonctions
                     // en portée LOCALE de moodle_init, invisibles depuis window.
-                    // Solution : on enveloppe le code de moodle.js dans une IIFE qui reçoit
-                    // window en argument et expose explicitement chaque fonction sur window.
+                    // Solution : envelopper le code dans une IIFE(window) et exposer
+                    // explicitement chaque fonction publique sur window.
                     var wrappedCode = '(function(global){\n' + code + '\n'
                         + 'var _fns=["plot_distribution_plotly","plot_distribution",'
-                        + '"plot_distribution_plotly","plot_binom_pmf","plot_normal_01",'
-                        + '"plot_line_area","plot_bar_chart","plot_line_area_bilateral",'
+                        + '"plot_binom_pmf","plot_normal_01","plot_line_area",'
+                        + '"plot_bar_chart","plot_line_area_bilateral",'
                         + '"data_from_function","bin_cdf","tcdf","getArray","reponses",'
-                        + '"reponses_proposees","intervalles_proposees","moodle_init"];\n'
+                        + '"reponses_proposees","intervalles_proposees"];\n'
                         + 'for(var _i=0;_i<_fns.length;_i++){'
                         + '  try{if(typeof eval(_fns[_i])!=="undefined")'
                         + '    global[_fns[_i]]=eval(_fns[_i]);}'
                         + '  catch(e){}}'
                         + '\n})(window);';
                     eval(wrappedCode);
-                    console.log("moodle.js chargé et exécuté.");
+                    console.log("moodle.js, Plotly et jStat chargés et prêts.");
 
                     // Afficher le contenu
                     if (mask)    mask.style.display    = 'none';
@@ -131,7 +167,7 @@ function moodle_init(mask_id, content_id) {
                     window._onMoodleReady = [];
                 })
                 .catch(function(err) {
-                    console.error("Erreur chargement moodle.js :", err);
+                    console.error("Erreur chargement des ressources :", err);
                     if (mask)    mask.style.display    = 'none';
                     if (content) content.style.display = 'block';
                 });
