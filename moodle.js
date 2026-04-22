@@ -3389,12 +3389,27 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
     /* Layout                                                               */
     /* ------------------------------------------------------------------ */
     var has_legend = show_legend && legend_traces.length > 0;
+
+    /* Pour les lois discretes : limiter le nombre de ticks et forcer le
+     * format entier ('d') pour eviter que MathJax duplique les valeurs.
+     * Avec MathJax actif sur Plotly, les tick labels numeriques sont parfois
+     * rendus deux fois (ex: 28 -> 2828). tickformat:'d' court-circuite ce
+     * comportement en forcant un rendu direct sans passer par MathJax. */
+    var xaxis_cfg = {
+        title: { text: x_title, font: { size: 12, color: C_TEXT } },
+        color: C_TEXT, gridcolor: C_GRID, zeroline: false, tickcolor: C_TEXT
+    };
+    if (is_discrete) {
+        var x_range  = Math.round(x_max) - Math.round(x_min);
+        var dtick_val = Math.max(1, Math.round(x_range / 10));
+        xaxis_cfg.tickmode  = 'linear';
+        xaxis_cfg.dtick     = dtick_val;
+        xaxis_cfg.tickformat = 'd';
+    }
+
     var layout = {
         title: { text: title, font: { size: 14, color: C_TEXT } },
-        xaxis: {
-            title: { text: x_title, font: { size: 12, color: C_TEXT } },
-            color: C_TEXT, gridcolor: C_GRID, zeroline: false, tickcolor: C_TEXT
-        },
+        xaxis: xaxis_cfg,
         yaxis: {
             title: { text: y_title, font: { size: 12, color: C_TEXT } },
             color: C_TEXT, gridcolor: C_GRID, zeroline: false, tickcolor: C_TEXT
