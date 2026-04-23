@@ -158,13 +158,17 @@ function moodle_init(mask_id, content_id) {
 
         if (moodleUrl !== "") {
 
-            // Capturer l'index des callbacks enregistres AU MOMENT de cet appel.
-            // Sur review.php, plusieurs moodle_init() coexistent sur la meme page
-            // et partagent window._onMoodleReady. Chaque moodle_init ne doit
-            // executer QUE les callbacks enregistres avant son propre appel,
-            // pas ceux des autres questions qui arriveront plus tard.
+            // Capturer le nombre de callbacks enregistres AU MOMENT de cet appel.
+            // Les callbacks sont enregistres AVANT moodle_init() dans le HTML.
+            // myEnd = snapshot de la longueur au moment de l'appel.
+            // Quand le Promise resout, on execute callbacks[0..myEnd-1],
+            // soit tous les callbacks de cette question et uniquement ceux-la.
+            // Sur review.php : la question 1 capture myEnd=2, la question 2
+            // capture myEnd=4, mais chaque moodle_init exécute [0..myEnd-1]
+            // — les callbacks déjà nullifiés par le premier moodle_init sont
+            // ignorés grâce au guard 'if (callbacks[i])' dans la boucle.
             window._onMoodleReady = window._onMoodleReady || [];
-            var myStart = window._onMoodleReady.length;
+            var myEnd = window._onMoodleReady.length;
 
             // Fetch de moodle.js — lance en parallele avec Plotly/jStat deja en cours
             var fetchMoodle = (window._moodleJsCode)
@@ -209,18 +213,16 @@ function moodle_init(mask_id, content_id) {
                     if (mask)    mask.style.display    = 'none';
                     if (content) content.style.display = 'block';
 
-                    // Executer UNIQUEMENT les callbacks enregistres avant cet appel
+                    // Executer les callbacks captures au moment de l'appel (indices 0..myEnd-1).
+                    // Les callbacks nullifies par un moodle_init precedent sont ignores.
                     var callbacks = window._onMoodleReady || [];
-                    var myEnd = callbacks.length;
-                    for (var i = myStart; i < myEnd; i++) {
+                    for (var i = 0; i < myEnd; i++) {
+                        if (!callbacks[i]) continue; // deja execute par un autre moodle_init
                         try { callbacks[i](); }
                         catch(e) {
                             console.error("Erreur dans _onMoodleReady[" + i + "] :", e);
                         }
-                    }
-                    // Marquer les callbacks consommes (sans les supprimer pour les autres)
-                    for (var j = myStart; j < myEnd; j++) {
-                        callbacks[j] = null;
+                        callbacks[i] = null; // marquer comme consomme
                     }
                 })
                 .catch(function(err) {
