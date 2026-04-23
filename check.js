@@ -169,6 +169,8 @@ function moodle_init(mask_id, content_id) {
             // ignorés grâce au guard 'if (callbacks[i])' dans la boucle.
             window._onMoodleReady = window._onMoodleReady || [];
             var myEnd = window._onMoodleReady.length;
+            console.log("moodle_init [" + mask_id + "] : myEnd=" + myEnd
+                + ", _onMoodleReady.length=" + window._onMoodleReady.length);
 
             // Fetch de moodle.js — lance en parallele avec Plotly/jStat deja en cours
             var fetchMoodle = (window._moodleJsCode)
@@ -189,6 +191,10 @@ function moodle_init(mask_id, content_id) {
                     var code = results[0]; // texte de moodle.js
 
                     // Evaluer moodle.js une seule fois (idempotent grace a _moodleJsLoaded)
+                    console.log("moodle_init [" + mask_id + "] Promise resolved : "
+                        + "myEnd=" + myEnd
+                        + ", _onMoodleReady.length=" + (window._onMoodleReady || []).length
+                        + ", _moodleJsLoaded=" + !!window._moodleJsLoaded);
                     if (!window._moodleJsLoaded) {
                         var wrappedCode = '(function(global){\n' + code + '\n'
                             + 'var _fns=["plot_distribution_plotly","plot_distribution",'
@@ -216,13 +222,18 @@ function moodle_init(mask_id, content_id) {
                     // Executer les callbacks captures au moment de l'appel (indices 0..myEnd-1).
                     // Les callbacks nullifies par un moodle_init precedent sont ignores.
                     var callbacks = window._onMoodleReady || [];
+                    console.log("moodle_init [" + mask_id + "] : execution callbacks 0.." + (myEnd-1));
                     for (var i = 0; i < myEnd; i++) {
-                        if (!callbacks[i]) continue; // deja execute par un autre moodle_init
+                        if (!callbacks[i]) {
+                            console.log("  callback[" + i + "] : deja null, skip");
+                            continue;
+                        }
+                        console.log("  callback[" + i + "] : execution");
                         try { callbacks[i](); }
                         catch(e) {
                             console.error("Erreur dans _onMoodleReady[" + i + "] :", e);
                         }
-                        callbacks[i] = null; // marquer comme consomme
+                        callbacks[i] = null;
                     }
                 })
                 .catch(function(err) {
