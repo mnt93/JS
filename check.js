@@ -87,32 +87,39 @@ function find_attempt_id() {
  *          On masque window.define le temps de l'eval puis on le restaure.
  */
 
-window._loadPlotly = (typeof window.Plotly !== 'undefined')
-    ? Promise.resolve()
-    : new Promise(function(resolve, reject) {
-        var s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js';
-        s.onload  = function() { console.log("Plotly charge."); resolve(); };
-        s.onerror = function() { reject(new Error('Echec chargement Plotly')); };
-        document.head.appendChild(s);
-    });
-
-window._loadJstat = (typeof window.jStat !== 'undefined')
-    ? Promise.resolve()
-    : fetch('https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js')
-        .then(function(r) {
-            if (!r.ok) throw new Error('Echec chargement jStat');
-            return r.text();
-        })
-        .then(function(jstatCode) {
-            var _define = window.define;
-            window.define = undefined;
-            try   { eval(jstatCode); }
-            finally { window.define = _define; }
-            console.log("jStat charge.");
+// Garde : sur review.php, check.js est evalue plusieurs fois (une par question).
+// On ne recrée les Promises que si elles n'existent pas encore, pour eviter
+// de relancer des chargements deja en cours ou termines.
+if (!window._loadPlotly) {
+    window._loadPlotly = (typeof window.Plotly !== 'undefined')
+        ? Promise.resolve()
+        : new Promise(function(resolve, reject) {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.0/plotly.min.js';
+            s.onload  = function() { console.log("Plotly charge."); resolve(); };
+            s.onerror = function() { reject(new Error('Echec chargement Plotly')); };
+            document.head.appendChild(s);
         });
+    console.log("check.js : chargement de Plotly lance.");
+}
 
-console.log("check.js : chargement de Plotly et jStat lance.");
+if (!window._loadJstat) {
+    window._loadJstat = (typeof window.jStat !== 'undefined')
+        ? Promise.resolve()
+        : fetch('https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js')
+            .then(function(r) {
+                if (!r.ok) throw new Error('Echec chargement jStat');
+                return r.text();
+            })
+            .then(function(jstatCode) {
+                var _define = window.define;
+                window.define = undefined;
+                try   { eval(jstatCode); }
+                finally { window.define = _define; }
+                console.log("jStat charge.");
+            });
+    console.log("check.js : chargement de jStat lance.");
+}
 
 /*=============================================================================================================== */
 
@@ -179,6 +186,12 @@ function moodle_init(mask_id, content_id) {
                         + '    global[_fns[_i]]=eval(_fns[_i]);}'
                         + '  catch(e){}}'
                         + '\n})(window);';
+                    // Neutraliser l'option mathjax de plotly_opts dans moodle.js
+                    // pour supprimer le warning "No MathJax version: undefined".
+                    // Cette option n'est plus necessaire depuis l'ajout de tickformat:'d'.
+                    wrappedCode = wrappedCode.replace(
+                        /mathjax\s*:\s*'[^']*'/g, ''
+                    );
                     eval(wrappedCode);
                     console.log("moodle.js evalue — toutes les dependances pretes.");
 
