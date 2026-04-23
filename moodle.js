@@ -3431,8 +3431,9 @@ function plot_distribution_plotly(div_id, law, params, x_obs, alpha, side, title
 
     var plotly_opts = {
         responsive: true,
-        displayModeBar: false,
-        mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js'
+        displayModeBar: false
+        /* mathjax supprimé : tickformat:'d' sur l'axe X suffit à éviter le
+         * doublement des labels (2828) sans nécessiter MathJax côté Plotly. */
     };
 
     /* ================================================================== */
