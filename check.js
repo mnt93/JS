@@ -158,56 +158,70 @@ function moodle_init(mask_id, content_id) {
 
         if (moodleUrl !== "") {
 
+            // Capturer l'index des callbacks enregistres AU MOMENT de cet appel.
+            // Sur review.php, plusieurs moodle_init() coexistent sur la meme page
+            // et partagent window._onMoodleReady. Chaque moodle_init ne doit
+            // executer QUE les callbacks enregistres avant son propre appel,
+            // pas ceux des autres questions qui arriveront plus tard.
+            window._onMoodleReady = window._onMoodleReady || [];
+            var myStart = window._onMoodleReady.length;
+
             // Fetch de moodle.js — lance en parallele avec Plotly/jStat deja en cours
-            var fetchMoodle = fetch(moodleUrl)
-                .then(function(response) {
-                    if (!response.ok) throw new Error('Erreur telechargement moodle.js');
-                    return response.text();
-                });
+            var fetchMoodle = (window._moodleJsCode)
+                ? Promise.resolve(window._moodleJsCode)
+                : fetch(moodleUrl)
+                    .then(function(response) {
+                        if (!response.ok) throw new Error('Erreur telechargement moodle.js');
+                        return response.text();
+                    })
+                    .then(function(code) {
+                        window._moodleJsCode = code; // cache pour les appels suivants
+                        return code;
+                    });
 
             // Attendre les trois ressources simultanement
             Promise.all([fetchMoodle, window._loadPlotly, window._loadJstat])
                 .then(function(results) {
                     var code = results[0]; // texte de moodle.js
 
-                    // Probleme de portee : moodle_init() est definie dans un eval()
-                    // (check.js est charge via eval). Un eval() imbrique cree les
-                    // fonctions en portee LOCALE, invisibles depuis window.
-                    // Solution : envelopper le code dans une IIFE(window) et exposer
-                    // explicitement chaque fonction publique sur window.
-                    var wrappedCode = '(function(global){\n' + code + '\n'
-                        + 'var _fns=["plot_distribution_plotly","plot_distribution",'
-                        + '"plot_binom_pmf","plot_normal_01","plot_line_area",'
-                        + '"plot_bar_chart","plot_line_area_bilateral",'
-                        + '"data_from_function","bin_cdf","tcdf","getArray","reponses",'
-                        + '"reponses_proposees","intervalles_proposees"];\n'
-                        + 'for(var _i=0;_i<_fns.length;_i++){'
-                        + '  try{if(typeof eval(_fns[_i])!=="undefined")'
-                        + '    global[_fns[_i]]=eval(_fns[_i]);}'
-                        + '  catch(e){}}'
-                        + '\n})(window);';
-                    // Neutraliser l'option mathjax de plotly_opts dans moodle.js
-                    // pour supprimer le warning "No MathJax version: undefined".
-                    // Cette option n'est plus necessaire depuis l'ajout de tickformat:'d'.
-                    wrappedCode = wrappedCode.replace(
-                        /mathjax\s*:\s*'[^']*'/g, ''
-                    );
-                    eval(wrappedCode);
-                    console.log("moodle.js evalue — toutes les dependances pretes.");
+                    // Evaluer moodle.js une seule fois (idempotent grace a _moodleJsLoaded)
+                    if (!window._moodleJsLoaded) {
+                        var wrappedCode = '(function(global){\n' + code + '\n'
+                            + 'var _fns=["plot_distribution_plotly","plot_distribution",'
+                            + '"plot_binom_pmf","plot_normal_01","plot_line_area",'
+                            + '"plot_bar_chart","plot_line_area_bilateral",'
+                            + '"data_from_function","bin_cdf","tcdf","getArray","reponses",'
+                            + '"reponses_proposees","intervalles_proposees"];\n'
+                            + 'for(var _i=0;_i<_fns.length;_i++){' 
+                            + '  try{if(typeof eval(_fns[_i])!=="undefined")' 
+                            + '    global[_fns[_i]]=eval(_fns[_i]);}' 
+                            + '  catch(e){}}' 
+                            + '\n})(window);';
+                        // Neutraliser l'option mathjax pour supprimer le warning
+                        // "No MathJax version: undefined" de Plotly
+                        wrappedCode = wrappedCode.replace(/mathjax\s*:\s*'[^']*'/g, '');
+                        eval(wrappedCode);
+                        window._moodleJsLoaded = true;
+                        console.log("moodle.js evalue — toutes les dependances pretes.");
+                    }
 
-                    // Afficher le contenu de la question
+                    // Afficher le contenu de cette question
                     if (mask)    mask.style.display    = 'none';
                     if (content) content.style.display = 'block';
 
-                    // Executer tous les callbacks enregistres par la question
+                    // Executer UNIQUEMENT les callbacks enregistres avant cet appel
                     var callbacks = window._onMoodleReady || [];
-                    for (var i = 0; i < callbacks.length; i++) {
+                    var myEnd = callbacks.length;
+                    for (var i = myStart; i < myEnd; i++) {
                         try { callbacks[i](); }
                         catch(e) {
                             console.error("Erreur dans _onMoodleReady[" + i + "] :", e);
                         }
                     }
-                    window._onMoodleReady = [];
+                    // Marquer les callbacks consommes (sans les supprimer pour les autres)
+                    for (var j = myStart; j < myEnd; j++) {
+                        callbacks[j] = null;
+                    }
                 })
                 .catch(function(err) {
                     console.error("Erreur chargement des ressources :", err);
