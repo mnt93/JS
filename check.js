@@ -219,22 +219,27 @@ function moodle_init(mask_id, content_id) {
                     if (mask)    mask.style.display    = 'none';
                     if (content) content.style.display = 'block';
 
-                    // Executer les callbacks captures au moment de l'appel (indices 0..myEnd-1).
-                    // Les callbacks nullifies par un moodle_init precedent sont ignores.
+                    // Executer les callbacks APRES que le navigateur ait rendu le layout.
+                    // Plotly.newPlot() a besoin que les divs cibles soient visibles pour
+                    // calculer leurs dimensions. requestAnimationFrame garantit que le
+                    // navigateur a appliqué display:block avant le tracé des graphiques.
                     var callbacks = window._onMoodleReady || [];
-                    console.log("moodle_init [" + mask_id + "] : execution callbacks 0.." + (myEnd-1));
-                    for (var i = 0; i < myEnd; i++) {
-                        if (!callbacks[i]) {
-                            console.log("  callback[" + i + "] : deja null, skip");
-                            continue;
+                    var myEndSnapshot = myEnd;
+                    console.log("moodle_init [" + mask_id + "] : execution callbacks 0.." + (myEndSnapshot-1));
+                    requestAnimationFrame(function() {
+                        for (var i = 0; i < myEndSnapshot; i++) {
+                            if (!callbacks[i]) {
+                                console.log("  callback[" + i + "] : deja null, skip");
+                                continue;
+                            }
+                            console.log("  callback[" + i + "] : execution");
+                            try { callbacks[i](); }
+                            catch(e) {
+                                console.error("Erreur dans _onMoodleReady[" + i + "] :", e);
+                            }
+                            callbacks[i] = null;
                         }
-                        console.log("  callback[" + i + "] : execution");
-                        try { callbacks[i](); }
-                        catch(e) {
-                            console.error("Erreur dans _onMoodleReady[" + i + "] :", e);
-                        }
-                        callbacks[i] = null;
-                    }
+                    });
                 })
                 .catch(function(err) {
                     console.error("Erreur chargement des ressources :", err);
